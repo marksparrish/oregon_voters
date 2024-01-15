@@ -1,0 +1,31 @@
+# Python-specific
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+
+# IDE-specific files (e.g., for VS Code, PyCharm, or other IDEs)
+.vscode/
+.idea/
+
+# Log files
+*.log
+
+# Compiled files or binary files (e.g., .pyc, .pyo, .exe)
+*.pyc
+*.pyo
+*.exe
+
+# Temporary files or directories
+__pycache__/
+.DS_Store
+
+# Ignore user-specific settings files
+*.cfg
+*.ini
+
+# Ignore any output or generated files (customize based on your project)
+output/
+build/
+dist/

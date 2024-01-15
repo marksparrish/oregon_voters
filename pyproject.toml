@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "oregon-voters"
+version = "0.1.0"
+description = ""
+authors = ["Mark Parrish <mark@pipcommunications.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pandas = "^2.1.4"
+elasticsearch = "^8.11.1"
+tqdm = "^4.66.1"
+argparse = "^1.4.0"
+common_functions = {path = "/Users/markparrish/pip/data_processing/common_functions", develop = true}
+pyarrow = "^14.0.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
