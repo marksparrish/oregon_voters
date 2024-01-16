@@ -29,3 +29,7 @@ __pycache__/
 output/
 build/
 dist/
+
+.env
+
+test.py

@@ -12,23 +12,27 @@ import pandas as pd
 from  common_functions.common import get_traceback, get_timing
 from utils.data_contract import DATA_CONTRACT
 from utils.arg_parser import get_date_and_sample
+from utils.config import STATE, TABLENAME, DATA_FILES
 
 # Get the date and sample values using the imported function
 file_date, sample = get_date_and_sample()
 
-state = 'OREGON'
-tablename = 'voters'
+data_file_path = DATA_FILES
+state_folder = STATE.lower()
+table_name = TABLENAME.lower()
 
+from_data_path = os.path.join(data_file_path, state_folder, 'voter_lists', 'raw', file_date.strftime('%Y_%m_%d'), table_name)
+to_data_path = os.path.join(data_file_path, state_folder, 'voter_lists', 'processed', f"{file_date.strftime('%Y.%m.%d')}.{table_name}.gzip")
 
 def _extract(df) -> pd.DataFrame:
     print("Extracting Data...")
     # get file names
-    file_path = f"/Volumes/nfs-data/voter_data/{state.lower()}/voter_lists/raw/{file_date.strftime('%Y_%m_%d')}/{tablename}"
-    print(file_path)
-    for file in os.listdir(file_path):
+
+    print(from_data_path)
+    for file in os.listdir(from_data_path):
         if file.endswith(".txt"):
-            print(os.path.join(file_path, file))
-            temp_df = pd.read_csv(os.path.join(file_path, file), sep='\t', dtype=str, low_memory=False, encoding_errors='ignore', on_bad_lines='skip')
+            print(os.path.join(from_data_path, file))
+            temp_df = pd.read_csv(os.path.join(from_data_path, file), sep='\t', dtype=str, low_memory=False, encoding_errors='ignore', on_bad_lines='skip')
             df = pd.concat([df, temp_df], ignore_index=True)
 
     return df.reset_index(drop=True)
@@ -78,6 +82,7 @@ def _clean(df):
     return df.reset_index(drop=True)
 
 def _transform(df) -> pd.DataFrame:
+     print(f"Initial Transformations....")
     # Define the confidential birth year
     # Convert the 'BIRTH_DATE' column to integers
     # Replace 'BIRTH_DATE' with 1850 for confidential voters
@@ -96,9 +101,7 @@ def _transform(df) -> pd.DataFrame:
 def _load(df) -> pd.DataFrame:
     print('Loading data...')
     print("...saving processed data")
-    # /Volumes/Data/voter_data/oregon/voter_lists/processed
-    file_path = f"/Volumes/nfs-data/voter_data/{state.lower()}/voter_lists/processed/{file_date.strftime('%Y.%m.%d')}.{tablename}.gzip"
-    df.to_parquet(file_path, index=False, compression='gzip')
+    df.to_parquet(to_data_path, index=False, compression='gzip')
 
     return df.reset_index(drop=True)
 
