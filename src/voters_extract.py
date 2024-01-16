@@ -82,7 +82,7 @@ def _clean(df):
     return df.reset_index(drop=True)
 
 def _transform(df) -> pd.DataFrame:
-     print(f"Initial Transformations....")
+    print("Initial Transformations....")
     # Define the confidential birth year
     # Convert the 'BIRTH_DATE' column to integers
     # Replace 'BIRTH_DATE' with 1850 for confidential voters
