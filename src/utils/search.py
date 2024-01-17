@@ -40,9 +40,7 @@ class MyExtendedElasticsearch(MyElasticsearch):
                 "field": "[ATTOM ID]"
             }
         }
-        fields = ["[ATTOM ID]", "PropertyAddress*", "PropertyLatitude", "PropertyLongitude"]
-        response = self.client.options(basic_auth=(self.username, self.password)).search(index=index_name, body=query, fields=fields)
-
+        response = self.client.options(basic_auth=(self.username, self.password)).search(index=index_name, body=query)
         return response
 
 search_client = MyExtendedElasticsearch(es_host, ca_cert_path, es_username, es_password)

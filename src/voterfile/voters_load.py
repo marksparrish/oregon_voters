@@ -5,6 +5,7 @@ Database will be named votetracker_{state}_voters_{file_date}
 Index will be named votetracker_{state}_voters_{file_date}
 """
 import sys
+sys.path.append(r'../src')
 import time
 from datetime import datetime
 

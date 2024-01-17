@@ -5,11 +5,12 @@
     the right format.
 """
 import sys
+sys.path.append(r'../src')
 import os
 import time
 from datetime import datetime
 import pandas as pd
-from  common_functions.common import get_traceback, get_timing
+from common_functions.common import get_traceback, get_timing
 from utils.data_contract import DATA_CONTRACT
 from utils.arg_parser import get_date_and_sample
 from utils.config import STATE, TABLENAME, DATA_FILES
@@ -17,6 +18,9 @@ from utils.config import STATE, TABLENAME, DATA_FILES
 # Get the date and sample values using the imported function
 file_date, sample = get_date_and_sample()
 
+# date2 = datetime(2017, 3, 4)
+# print(type(file_date), type(date2))
+# exit()
 data_file_path = DATA_FILES
 state_folder = STATE.lower()
 table_name = TABLENAME.lower()
@@ -86,14 +90,26 @@ def _transform(df) -> pd.DataFrame:
     # Define the confidential birth year
     # Convert the 'BIRTH_DATE' column to integers
     # Replace 'BIRTH_DATE' with 1850 for confidential voters
-    generic_birth_year = 1850
-    df.loc[df['confidential'] == 'confidential', 'birthdate'] = generic_birth_year
-    df.loc[df['birthdate'].str.contains('X'), 'birthdate'] = generic_birth_year
-    df['birthdate'] = df['birthdate'].astype(int, errors='ignore')
-    df.loc[df['birthdate'] < generic_birth_year, 'birthdate'] = generic_birth_year
-    current_year = pd.Timestamp.now().year
-    # Calculate age by subtracting birth year from the current year
-    df['age'] = current_year - df['birthdate']
+    date2 = datetime(2017, 3, 4)
+    if file_date < date2:
+        df['birthdate'] = pd.to_datetime(df['birthdate'], errors='coerce')
+        default_date = datetime(1850, 1, 1)
+        df['birthdate'] = df['birthdate'].fillna(default_date)
+        df['birth_year'] = df['birthdate'].astype(str).str[:4].astype(int)
+        current_year = pd.Timestamp.now().year
+        df['age'] = current_year - df['birth_year']
+        df.drop(columns=['birth_year'], inplace=True)
+    else:
+        generic_birth_year = 1850
+        df.loc[df['confidential'] == 'confidential', 'birthdate'] = generic_birth_year
+        df.loc[df['birthdate'].str.contains('X'), 'birthdate'] = generic_birth_year
+        df['birthdate'] = df['birthdate'].astype(int, errors='ignore')
+        df.loc[df['birthdate'] < generic_birth_year, 'birthdate'] = generic_birth_year
+        current_year = pd.Timestamp.now().year
+        # Calculate age by subtracting birth year from the current year
+        df['age'] = current_year - df['birthdate']
+
+
     df['precinct_link'] = df['county'] + '-' + df['precinct'] + '-' + df['split']
 
     return df.drop_duplicates(subset="state_voter_id", keep="first").reset_index(drop=True)

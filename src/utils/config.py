@@ -3,8 +3,7 @@ import os
 from dotenv import load_dotenv
 
 # Specify the path to the .env file at the top level of your project
-dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
-
+dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', '.env')
 # Load environment variables from the specified .env file
 load_dotenv(dotenv_path)
 
