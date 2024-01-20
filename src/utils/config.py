@@ -9,7 +9,6 @@ load_dotenv(dotenv_path)
 
 # Define default constants
 STATE = os.environ.get("STATE", "OREGON")
-TABLENAME = os.environ.get("TABLENAME", "voters")
 DATA_FILES = os.environ.get("DATA_FILES", "/Volumes/nfs-data/voter_data")
 
 # Define elasticsearch constants

@@ -14,6 +14,7 @@ argparse = "^1.4.0"
 common_functions = {path = "/Users/markparrish/pip/data_processing/common_functions", develop = true}
 pyarrow = "^14.0.2"
 python-dotenv = "^1.0.0"
+pandarallel = "^1.6.5"
 
 [build-system]
 requires = ["poetry-core"]

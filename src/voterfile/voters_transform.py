@@ -10,43 +10,90 @@ import os
 import time
 from datetime import datetime
 import pandas as pd
+import numpy as np
 import pyarrow.parquet as pq
+from pandarallel import pandarallel
 
 from common_functions.common import get_traceback, get_timing
 from common_functions.physical_address import standardize_address
-from utils.data_contract import DATA_CONTRACT
+from common_functions.file_operations import read_extract, write_load
+from utils.search import search_client
 from utils.arg_parser import get_date_and_sample
-from utils.config import STATE, TABLENAME, DATA_FILES
 
-# Get the date and sample values using the imported function
-file_date, sample = get_date_and_sample()
+from voterfile_data_contract import DATA_CONTRACT, STATE, TABLENAME
+from utils.config import DATA_FILES
 
-data_file_path = DATA_FILES
-state_folder = STATE.lower()
-table_name = TABLENAME.lower()
 
-from_data_path = os.path.join(data_file_path, state_folder, 'voter_lists', 'processed', f"{file_date.strftime('%Y.%m.%d')}.{table_name}.gzip")
-to_data_path = os.path.join(data_file_path, state_folder, 'voter_lists', 'final', f"{file_date.strftime('%Y.%m.%d')}.{table_name}.gzip")
+# Initialize pandarallel
+pandarallel.initialize(progress_bar=True)
 
-def _extract(df) -> pd.DataFrame:
-    print("Extracting Data...")
-    # get file names
-    df = pq.read_table(source=from_data_path).to_pandas()
-    return df.reset_index(drop=True)
+def truncate_words(address, max_length=10):
+    # Split the address into words and truncate each word to max_length
+    truncated_words = [word[:max_length] for word in address.split()]
+    # Join the truncated words back into a string
+    return ' '.join(truncated_words)
 
 # Define a function to apply 'standardize_address' to each row
-def apply_standardize_address(row):
-    # Create a list of address columns you want to standardize
-    address_columns = [
-        row['physical_address_1'],
-        row['physical_address_2'],
-        row['physical_city'],
-        row['physical_state'],
-        row['physical_zip_code']
-    ]
-    address_columns = ['' if x is None else x for x in address_columns]
-    # Call your 'standardize_address' function with the list of address columns
-    return standardize_address(address_columns)
+def search_for_address(address):
+    index_name = "attom"
+
+    # address = truncate_words(address)
+
+    search_results = search_client.search_address(index_name, address)
+
+    if len(search_results['hits']['hits']) == 1:
+        hit = search_results['hits']['hits'][0]['_source']
+        return pd.Series({
+            "results": "Success",
+            "phsyical_id": hit.get("[ATTOM ID]"),
+            "PropertyAddressFull": hit.get("PropertyAddressFull"),
+            "PropertyAddressHouseNumber": hit.get("PropertyAddressHouseNumber"),
+            "PropertyAddressStreetDirection": hit.get("PropertyAddressStreetDirection"),
+            "PropertyAddressStreetName": hit.get("PropertyAddressStreetName"),
+            "PropertyAddressStreetSuffix": hit.get("PropertyAddressStreetSuffix"),
+            "PropertyAddressCity": hit.get("PropertyAddressCity"),
+            "PropertyAddressState": hit.get("PropertyAddressState"),
+            "PropertyAddressZIP": hit.get("PropertyAddressZIP"),
+            "PropertyAddressZIP4": hit.get("PropertyAddressZIP4"),
+            "PropertyAddressCRRT": hit.get("PropertyAddressCRRT"),
+            "PropertyLatitude": hit.get("PropertyLatitude"),
+            "PropertyLongitude": hit.get("PropertyLongitude")
+        })
+
+    if len(search_results['hits']['hits']) > 1:
+        return pd.Series({
+            "results": "Too Many Results",
+            "phsyical_id": "",
+            "PropertyAddressFull": "",
+            "PropertyAddressHouseNumber": "",
+            "PropertyAddressStreetDirection": "",
+            "PropertyAddressStreetName": "",
+            "PropertyAddressStreetSuffix": "",
+            "PropertyAddressCity": "",
+            "PropertyAddressState": "",
+            "PropertyAddressZIP": "",
+            "PropertyAddressZIP4": "",
+            "PropertyAddressCRRT": "",
+            "PropertyLatitude": "",
+            "PropertyLongitude": ""
+        })
+
+    return pd.Series({
+        "results": "No Results",
+        "phsyical_id": "",
+        "PropertyAddressFull": "",
+        "PropertyAddressHouseNumber": "",
+        "PropertyAddressStreetDirection": "",
+        "PropertyAddressStreetName": "",
+        "PropertyAddressStreetSuffix": "",
+        "PropertyAddressCity": "",
+        "PropertyAddressState": "",
+        "PropertyAddressZIP": "",
+        "PropertyAddressZIP4": "",
+        "PropertyAddressCRRT": "",
+        "PropertyLatitude": "",
+        "PropertyLongitude": ""
+    })
 
 def _transform(df) -> pd.DataFrame:
     """
@@ -57,52 +104,57 @@ def _transform(df) -> pd.DataFrame:
     Write processed voters to file having the right columns
     """
     print("...standardizing physical address")
-    # Standardize physical address
-    result = df.apply(apply_standardize_address, axis=1)
-    # Create new columns for the results
-    df['StandardizedAddress'] = [result[i][0] for i in range(len(result))]
-    df['AddressType'] = [result[i][1] for i in range(len(result))]
+    # find address
+    df['find_address'] = df['physical_house_number'].astype(str) + ' ' + df['physical_street_name'].astype(str) + ' ' + df['physical_zip_code'].astype(str)
+    address_df = df['find_address'].parallel_apply(search_for_address)
+    df = df.join(address_df)
+    # Define conditions
 
+    # df['flattened_response'] = df['found_address'].parallel_apply(flatten_response)
 
-    # print("...standardizing mailing address")
-    # # Standardize mailing address
-    # mail_columns = ['mail_address_1', 'mail_address_2', 'mail_address_3', 'mail_address_4', 'mail_city', 'mail_state', 'mail_zip_code']
-    # df['mail_address_whole'] = df[mail_columns].apply(standardize_address, axis=1, result_type='expand')
+    # # Convert the flattened responses to a DataFrame
+    # df_flattened = pd.json_normalize(df['flattened_response'])
 
-    # print("...creating hashes for physical and mail addresses")
-    # # for confidential addresses we hash the precinct_link
-    # df["physical_address_whole"] = np.where(df["confidential"] == "YES", df['precinct_link'], df['physical_address_whole'])
-    # df['physical_id'] = df['physical_address_whole'].apply(create_hash)
-    # df['mail_id'] = df['mail_address_whole'].apply(create_hash)
+    # # Concatenate the new DataFrame with the original DataFrame
+    # df = pd.concat([df, df_flattened], axis=1)
 
+    # # Create a boolean mask for rows with "Too Many Results" and a non-empty 'physical_unit_type'
+    # mask = (df['found_address'] == "Too Many Results") & df['physical_unit_type'].notna()
+    # # Use the mask to assign values in the new column
+    # df['apartment_flag'] = "Not Apartment"  # Default value
+    # df.loc[mask, 'apartment_flag'] = "Possible Apartment"
+
+    # df = df.drop('find_address', axis=1)
     return df.reset_index(drop=True)
 
-def _load(df) -> pd.DataFrame:
-    print('Loading data...')
-    print("...saving processed data")
-    file_path = f"/data/{STATE}/voter_lists/final/{file_date.strftime('%Y.%m.%d')}.{TABLENAME}.gzip"
-    df.to_parquet(file_path, index=False, compression='gzip')
-
-    return df.reset_index(drop=True)
 
 def main():
+    # Get the date and sample values using the imported function
+    file_date, sample = get_date_and_sample()
+    print(f"Processing processed voter file on {file_date.strftime('%Y-%m-%d')}")
+
+    raw_data_path = os.path.join(DATA_FILES, STATE.lower(), 'voter_lists', 'raw', file_date.strftime('%Y_%m_%d'), TABLENAME.lower())
+    processed_data_path = os.path.join(DATA_FILES, STATE.lower(), 'voter_lists', 'processed', f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip")
+    final_data_path = os.path.join(DATA_FILES, STATE.lower(), 'voter_lists', 'final', f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip")
+
     df = pd.DataFrame()
-    df = _extract(df)
+    df = read_extract(df, processed_data_path)
     if sample:
         print(f"...taking a sample of {sample}")
         df = df.sample(n=sample)
     df = _transform(df)
-    # df = _load(df)
+    df = write_load(df, final_data_path)
 
     print(f"File Processed {len(df)} records")
-    print(f"File Processed {len(df.columns)} columns")
-    for col in df.columns:
-        print(col)
+    # for col in df.columns:
+    #     print(col)
+    # print(df.head())
+    print(df['results'].value_counts())
+
 
 if __name__ == "__main__":
     process_time = time.time()
     try:
-        print(f"Processing processed voter file on {file_date.strftime('%Y-%m-%d')}")
         main()
     except Exception as e:
         print('------Start--------')

@@ -11,32 +11,22 @@ import time
 from datetime import datetime
 import pandas as pd
 from common_functions.common import get_traceback, get_timing
-from utils.data_contract import DATA_CONTRACT
 from utils.arg_parser import get_date_and_sample
-from utils.config import STATE, TABLENAME, DATA_FILES
+from utils.config import DATA_FILES
+from voterfile_data_contract import DATA_CONTRACT, STATE, TABLENAME
 
 # Get the date and sample values using the imported function
 file_date, sample = get_date_and_sample()
-
-# date2 = datetime(2017, 3, 4)
-# print(type(file_date), type(date2))
-# exit()
-data_file_path = DATA_FILES
-state_folder = STATE.lower()
-table_name = TABLENAME.lower()
-
-from_data_path = os.path.join(data_file_path, state_folder, 'voter_lists', 'raw', file_date.strftime('%Y_%m_%d'), table_name)
-to_data_path = os.path.join(data_file_path, state_folder, 'voter_lists', 'processed', f"{file_date.strftime('%Y.%m.%d')}.{table_name}.gzip")
+raw_data_path = os.path.join(DATA_FILES, STATE.lower(), 'voter_lists', 'raw', file_date.strftime('%Y_%m_%d'), TABLENAME.lower())
+processed_data_path = os.path.join(DATA_FILES, STATE.lower(), 'voter_lists', 'processed', f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip")
+final_data_path = os.path.join(DATA_FILES, STATE.lower(), 'voter_lists', 'final', f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip")
 
 def _extract(df) -> pd.DataFrame:
     print("Extracting Data...")
-    # get file names
-
-    print(from_data_path)
-    for file in os.listdir(from_data_path):
+    for file in os.listdir(raw_data_path):
         if file.endswith(".txt"):
-            print(os.path.join(from_data_path, file))
-            temp_df = pd.read_csv(os.path.join(from_data_path, file), sep='\t', dtype=str, low_memory=False, encoding_errors='ignore', on_bad_lines='skip')
+            print(os.path.join(raw_data_path, file))
+            temp_df = pd.read_csv(os.path.join(raw_data_path, file), sep='\t', dtype=str, low_memory=False, encoding_errors='ignore', on_bad_lines='skip')
             df = pd.concat([df, temp_df], ignore_index=True)
 
     return df.reset_index(drop=True)
@@ -117,7 +107,7 @@ def _transform(df) -> pd.DataFrame:
 def _load(df) -> pd.DataFrame:
     print('Loading data...')
     print("...saving processed data")
-    df.to_parquet(to_data_path, index=False, compression='gzip')
+    df.to_parquet(processed_data_path, index=False, compression='gzip')
 
     return df.reset_index(drop=True)
 

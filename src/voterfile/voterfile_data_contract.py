@@ -1,5 +1,5 @@
-STATE="oregon"
-TABLENAME = 'voters'
+STATE="OREGON"
+TABLENAME = "VOTERS"
 # codes for active voters all others will be ignored
 ACTIVE_VOTERS_CODES = ["A"]
 # data contract to ensure needed votetracker fields are present

@@ -160,6 +160,7 @@ elasticsearch = "^8.11.1"
 gender-guesser = "^0.4.0"
 pandarallel = "^1.6.5"
 pandas = "^2.1.4"
+pyarrow = "^14.0.2"
 usaddress = "^0.5.10"
 usaddress-scourgify = "^0.6.0"
 
@@ -791,4 +792,4 @@ PyYAML = ">=3.13"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "54640e754a8e99b8f66517b98a54c84fa6a59a99f9bb4e940f2fe575d6b70cda"
+content-hash = "a759e99422f91acc3bafdf3a68645073e74fc70747817ead982e4ddaca02e8f1"

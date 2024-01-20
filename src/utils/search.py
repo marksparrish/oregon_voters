@@ -37,7 +37,7 @@ class MyExtendedElasticsearch(MyElasticsearch):
                 }
             },
             "collapse": {
-                "field": "[ATTOM ID]"
+                "field": "[ATTOM ID].keyword"
             }
         }
         response = self.client.options(basic_auth=(self.username, self.password)).search(index=index_name, body=query)
