@@ -44,6 +44,38 @@ class MyExtendedElasticsearch(MyElasticsearch):
         response = self.client.options(basic_auth=(self.username, self.password)).search(index=index_name, body=query)
         return response
 
+    def search_unit_address(self, index_name, address_query):
+        """
+        Search for an address in the Elasticsearch index.
+
+        Args:
+            index_name (str): The name of the Elasticsearch index to search.
+            address_query (str): The address query to search for.
+
+        Returns:
+            dict: The search results as a dictionary.
+        """
+        # Create an Elasticsearch query DSL for address search
+        query = {
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "simple_query_string": {
+                                "query": address_query,
+
+                                "fields": ["PropertyAddress*"],
+                                "default_operator": "AND",
+                                "analyzer": "standard"
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+        response = self.client.options(basic_auth=(self.username, self.password)).search(index=index_name, body=query)
+        return response
+
     def exact_match_address(self, index_name, house_number, street_name, zip_code):
         """
         Search for an address in the Elasticsearch index.
@@ -86,7 +118,7 @@ def process_search_results(search_results):
     hits_count = len(search_results['hits']['hits'])
 
     if hits_count == 1:
-        hit = search_results['hits']['hits'][0]['_source']
+        hit = search_results['hits']['hits'][0]
         return handle_single_result(hit)
 
     if hits_count > 1:
@@ -95,27 +127,28 @@ def process_search_results(search_results):
     return handle_no_results()
 
 def handle_single_result(hit):
+    physical_id = hit["_id"]
     return pd.Series({
         "results": "Success",
-        "phsyical_id": hit.get("[ATTOM ID]"),
-        "PropertyAddressFull": hit.get("PropertyAddressFull"),
-        "PropertyAddressHouseNumber": hit.get("PropertyAddressHouseNumber"),
-        "PropertyAddressStreetDirection": hit.get("PropertyAddressStreetDirection"),
-        "PropertyAddressStreetName": hit.get("PropertyAddressStreetName"),
-        "PropertyAddressStreetSuffix": hit.get("PropertyAddressStreetSuffix"),
-        "PropertyAddressCity": hit.get("PropertyAddressCity"),
-        "PropertyAddressState": hit.get("PropertyAddressState"),
-        "PropertyAddressZIP": hit.get("PropertyAddressZIP"),
-        "PropertyAddressZIP4": hit.get("PropertyAddressZIP4"),
-        "PropertyAddressCRRT": hit.get("PropertyAddressCRRT"),
-        "PropertyLatitude": hit.get("PropertyLatitude"),
-        "PropertyLongitude": hit.get("PropertyLongitude")
+        "physical_id": physical_id,
+        "PropertyAddressFull": hit['_source'].get("PropertyAddressFull"),
+        "PropertyAddressHouseNumber": hit['_source'].get("PropertyAddressHouseNumber"),
+        "PropertyAddressStreetDirection": hit['_source'].get("PropertyAddressStreetDirection"),
+        "PropertyAddressStreetName": hit['_source'].get("PropertyAddressStreetName"),
+        "PropertyAddressStreetSuffix": hit['_source'].get("PropertyAddressStreetSuffix"),
+        "PropertyAddressCity": hit['_source'].get("PropertyAddressCity"),
+        "PropertyAddressState": hit['_source'].get("PropertyAddressState"),
+        "PropertyAddressZIP": hit['_source'].get("PropertyAddressZIP"),
+        "PropertyAddressZIP4": hit['_source'].get("PropertyAddressZIP4"),
+        "PropertyAddressCRRT": hit['_source'].get("PropertyAddressCRRT"),
+        "PropertyLatitude": str(hit['_source'].get("PropertyLatitude")),
+        "PropertyLongitude": str(hit['_source'].get("PropertyLongitude"))
     })
 
 def handle_multiple_results():
     return pd.Series({
         "results": "Too Many Results",
-        "phsyical_id": "",
+        "physical_id": "",
         "PropertyAddressFull": "",
         "PropertyAddressHouseNumber": "",
         "PropertyAddressStreetDirection": "",
@@ -133,7 +166,7 @@ def handle_multiple_results():
 def handle_no_results():
     return pd.Series({
         "results": "No Results",
-        "phsyical_id": "",
+        "physical_id": "",
         "PropertyAddressFull": "",
         "PropertyAddressHouseNumber": "",
         "PropertyAddressStreetDirection": "",

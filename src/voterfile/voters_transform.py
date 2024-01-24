@@ -38,10 +38,20 @@ def search_for_address(address):
     search_results = search_client.search_address(index_name, address)
     return process_search_results(search_results)
 
+def search_for_apartments(address):
+    index_name = "places-previous"
+    search_results = search_client.search_unit_address(index_name, address)
+    return process_search_results(search_results)
+
+
 def exact_match_address(house_number, street_name, zip_code):
     index_name = "places"
     search_results = search_client.exact_match_address(index_name, house_number, street_name, zip_code)
     return process_search_results(search_results)
+
+def update_address_fields(df, mask, search_function):
+    columns_to_update = ["results", "physical_id", "PropertyAddressFull", "PropertyAddressHouseNumber", "PropertyAddressStreetDirection", "PropertyAddressStreetName", "PropertyAddressStreetSuffix", "PropertyAddressCity", "PropertyAddressState", "PropertyAddressZIP", "PropertyAddressZIP4", "PropertyAddressCRRT", "PropertyLatitude", "PropertyLongitude"]
+    df.loc[mask, columns_to_update] = df[mask].apply(lambda x: search_function(x['find_address']), axis=1, result_type="expand")
 
 
 def _transform(df) -> pd.DataFrame:
@@ -55,81 +65,55 @@ def _transform(df) -> pd.DataFrame:
 
     # fill na with empty string
     df = df.fillna('')
-    print("...standardizing physical address")
-    # find address
-    df['find_address'] = df['physical_house_number'].astype(str) + ' ' + df['physical_street_name'].astype(str) + ' ' + df['physical_zip_code'].astype(str)
-    address_df = df['find_address'].parallel_apply(search_for_address)
-    df = df.join(address_df)
+    print("...adding columns")
+    columns_to_update = ["results", "physical_id", "PropertyAddressFull", "PropertyAddressHouseNumber", "PropertyAddressStreetDirection", "PropertyAddressStreetName", "PropertyAddressStreetSuffix", "PropertyAddressCity", "PropertyAddressState", "PropertyAddressZIP", "PropertyAddressZIP4", "PropertyAddressCRRT", "PropertyLatitude", "PropertyLongitude"]
+    for column in columns_to_update:
+        df[column] = None
 
-    # Add Confidetial to Results where the address is confidential
-    # Confidential address are not geocoded and have a physical_id equal to the precinct_link
-    df.loc[df['confidential'] == 'Confidential', 'results'] = 'Confidential'
-    df.loc[df['confidential'] == 'Confidential', 'physical_id'] = df['precinct_link']
+    print("...marking confidential address")
+    confidential_mask = df['confidential'] == 'Confidential'
+    df.loc[confidential_mask, 'results'] = 'Confidential'
+    df.loc[confidential_mask, 'physical_id'] = df['precinct_link']
+
+    # find address
+    # df['find_address'] = df['physical_house_number'].astype(str) + ' ' + df['physical_street_name'].astype(str) + ' ' + df['physical_zip_code'].astype(str)
+
+    # find_address with unit number, street pre dicrection, street name, unit number, zip code
+    df['find_address'] = df['physical_house_number'].astype(str) + ' ' + df['physical_street_pre_direction'].astype(str) + ' ' + df['physical_street_name'].astype(str) + ' ' + df['physical_zip_code'].astype(str) + ' ' + df['physical_unit_number'].astype(str)
+
+    print("...searching attom addresses")
+    mask = df['confidential'] != 'Confidential'
+    df.loc[mask, columns_to_update] = df[mask].parallel_apply(lambda x: search_for_address(x['find_address']), axis=1, result_type="expand")
+    # df = df.join(address_df)
+
+    # deal with appartments in the apartment index
+    print("...searching alternative addresses")
+    mask = (df['results'] != "Success" ) & (df['confidential'] != 'Confidential')
+    # df['find_address'] = df['physical_house_number'].astype(str) + ' ' + df['physical_street_name'].astype(str) + ' ' + df['physical_zip_code'].astype(str) + ' ' + df['physical_unit_number'].astype(str)
+    df.loc[mask, columns_to_update] = df[mask].parallel_apply(lambda x: search_for_apartments(x['find_address']), axis=1, result_type="expand")
+
+    # # find_address with unit number, street pre dicrection, street name, unit number, zip code
+    # df['find_address'] = df['physical_house_number'].astype(str) + ' ' + df['physical_street_pre_direction'].astype(str) + ' ' + df['physical_street_name'].astype(str) + ' ' + df['physical_zip_code'].astype(str) + ' ' + df['physical_unit_number'].astype(str)
+
+    # # deal with addresses that have a unit number (Condos, Apartments, etc)
+    # # need to reapply the mask becuase the df has changed
+    # print("...standardizing physical address with unit number")
+    # mask = (df['results'] == "Too Many Results")
+    # df.loc[mask, columns_to_update] = df[mask].parallel_apply(lambda x: search_for_address(x['find_address']), axis=1, result_type="expand")
+
+
+    # # deal with appartments in the apartment index
+    # print("...standardizing physical address with unit number in apartment index")
+    # mask = (df['results'] == "No Results")
+    # # df['find_address'] = df['physical_house_number'].astype(str) + ' ' + df['physical_street_name'].astype(str) + ' ' + df['physical_zip_code'].astype(str) + ' ' + df['physical_unit_number'].astype(str)
+    # df.loc[mask, columns_to_update] = df[mask].parallel_apply(lambda x: search_for_apartments(x['find_address']), axis=1, result_type="expand")
 
     # frist pass on too many results
     # see if there is an exact match on the house number, street and zip code
-    mask = (df['results'] == "Too Many Results")
-    df[["results",
-        "phsyical_id",
-        "PropertyAddressFull",
-        "PropertyAddressHouseNumber",
-        "PropertyAddressStreetDirection",
-        "PropertyAddressStreetName",
-        "PropertyAddressStreetSuffix",
-        "PropertyAddressCity",
-        "PropertyAddressState",
-        "PropertyAddressZIP",
-        "PropertyAddressZIP4",
-        "PropertyAddressCRRT",
-        "PropertyLatitude",
-        "PropertyLongitude"]] = df.parallel_apply(lambda x: exact_match_address(x['physical_house_number'], x['physical_street_name'], x['physical_zip_code']) if mask[x.name] else
-            (x["results"],
-            x["phsyical_id"],
-            x["PropertyAddressFull"],
-            x["PropertyAddressHouseNumber"],
-            x["PropertyAddressStreetDirection"],
-            x["PropertyAddressStreetName"],
-            x["PropertyAddressStreetSuffix"],
-            x["PropertyAddressCity"],
-            x["PropertyAddressState"],
-            x["PropertyAddressZIP"],
-            x["PropertyAddressZIP4"],
-            x["PropertyAddressCRRT"],
-            x["PropertyLatitude"],
-            x["PropertyLongitude"]), axis=1, result_type="expand")
+    print("...trying exact match")
+    mask = (df['results'] != "Success" ) & (df['confidential'] != 'Confidential')
+    df.loc[mask, columns_to_update] = df[mask].parallel_apply(lambda x: exact_match_address(x['physical_house_number'], x['physical_street_name'], x['physical_zip_code']), axis=1, result_type="expand")
 
-    # deal with addresses that have a unit number (Condos, Apartments, etc)
-    # need to reapply the mask becuase the df has changed
-    mask = (df['results'] == "Too Many Results")
-    df['find_address'] = df['physical_house_number'].astype(str) + ' ' + df['physical_street_name'].astype(str) + ' ' + df['physical_zip_code'].astype(str) + ' ' + df['physical_unit_number'].astype(str)
-    df[["results",
-        "phsyical_id",
-        "PropertyAddressFull",
-        "PropertyAddressHouseNumber",
-        "PropertyAddressStreetDirection",
-        "PropertyAddressStreetName",
-        "PropertyAddressStreetSuffix",
-        "PropertyAddressCity",
-        "PropertyAddressState",
-        "PropertyAddressZIP",
-        "PropertyAddressZIP4",
-        "PropertyAddressCRRT",
-        "PropertyLatitude",
-        "PropertyLongitude"]] = df.parallel_apply(lambda x: search_for_address(x['find_address']) if mask[x.name] else
-            (x["results"],
-            x["phsyical_id"],
-            x["PropertyAddressFull"],
-            x["PropertyAddressHouseNumber"],
-            x["PropertyAddressStreetDirection"],
-            x["PropertyAddressStreetName"],
-            x["PropertyAddressStreetSuffix"],
-            x["PropertyAddressCity"],
-            x["PropertyAddressState"],
-            x["PropertyAddressZIP"],
-            x["PropertyAddressZIP4"],
-            x["PropertyAddressCRRT"],
-            x["PropertyLatitude"],
-            x["PropertyLongitude"]), axis=1, result_type="expand")
 
     # df = df.drop('find_address', axis=1)
     return df.reset_index(drop=True)

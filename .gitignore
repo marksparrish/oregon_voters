@@ -33,3 +33,4 @@ dist/
 .env
 
 test.py
+src/voterfile/oregon_voters.code-workspace
