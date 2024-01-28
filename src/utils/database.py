@@ -1,6 +1,7 @@
 # db_connection.py
 from sqlalchemy import create_engine
 from utils.config import DB_HOST, DB_USERNAME, DB_PASSWORD, DB_PORT
+from sqlalchemy.sql import text
 
 class Database:
     def __init__(self, database):
@@ -30,3 +31,36 @@ class Database:
         sqlalchemy.engine.base.Engine: SQLAlchemy engine
         """
         return self.engine
+
+    def create_index(self, table_name, columns):
+        """
+        Create a BTREE index on the specified columns of a table.
+
+        Parameters:
+        table_name (str): Name of the table on which to create the index.
+        columns (list of str): List of column names to include in the index.
+        """
+        if not columns:
+            raise ValueError("No columns provided for index creation")
+
+        index_name = f"idx_{'_'.join(columns)}"
+        column_list = ', '.join(columns)
+        sql = text(f"CREATE INDEX `{index_name}` on `{table_name}` ({column_list}) USING BTREE")
+        # ADD INDEX `idx_precincts-2023-10-05_district_link` (`district_link`) USING BTREE;
+
+        with self.engine.connect() as connection:
+            # connection.execute(text(f"ALTER TABLE `{self.database}`.`{table_name}`"))
+            connection.execute(sql)
+
+    def create_view(self, view_name, table_name):
+        """
+        Create a view with all fields from the specified table.
+
+        Parameters:
+        view_name (str): Name of the view to be created.
+        table_name (str): Name of the table to create the view from.
+        """
+        sql_command = text(f"CREATE OR REPLACE VIEW `{view_name}` AS SELECT * FROM `{table_name}`")
+
+        with self.engine.connect() as connection:
+            connection.execute(sql_command)

@@ -10,30 +10,15 @@ import os
 import time
 from datetime import datetime
 import pandas as pd
+
 from common_functions.common import get_traceback, get_timing
-from utils.arg_parser import get_date_and_sample
-from utils.config import DATA_FILES
-from precinct_data_contract import DATA_CONTRACT, STATE, TABLENAME
+from common_functions.file_operations import read_extract, write_load, read_extract_multiple
 
-# Get the date and sample values using the imported function
-file_date, sample = get_date_and_sample()
+from utils.arg_parser import get_date, get_sample
 
-raw_data_path = os.path.join(DATA_FILES, STATE.lower(), 'voter_lists', 'raw', file_date.strftime('%Y_%m_%d'), TABLENAME.lower())
-processed_data_path = os.path.join(DATA_FILES, STATE.lower(), 'voter_lists', 'processed', f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip")
-final_data_path = os.path.join(DATA_FILES, STATE.lower(), 'voter_lists', 'final', f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip")
-
-def _extract(df) -> pd.DataFrame:
-    print("Extracting Data...")
-    # get file names
-
-    print(from_data_path)
-    for file in os.listdir(from_data_path):
-        if file.endswith(".txt"):
-            print(os.path.join(raw_data_path, file))
-            temp_df = pd.read_csv(os.path.join(from_data_path, file), sep='\t', dtype=str, low_memory=False, encoding_errors='ignore', on_bad_lines='skip')
-            df = pd.concat([df, temp_df], ignore_index=True)
-
-    return df.reset_index(drop=True)
+from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, state, file_date, sample
+from data_contracts.precinct_data_contract import DATA_CONTRACT, TABLENAME, dtype_mapping, final_columns
+from utils.database import Database
 
 def _clean(df):
     print("Cleaning data")
@@ -65,10 +50,11 @@ def _validate(df):
 
 def _transform(df):
     print('Transforming data...')
-    df['precinct_link'] = df['disrict_county'] + '-' + df['precinct_number'] + '-' + df['precinct_split']
-    df['district_link'] = df['disrict_county'] + '-' + df['district_type'] + '-' + df['district_name']
+    df['precinct_link'] = df['district_county'] + '-' + df['precinct_number'] + '-' + df['precinct_split']
+    df['district_link'] = df['district_county'] + '-' + df['district_type'] + '-' + df['district_name']
     df['file_date'] = file_date.strftime('%Y-%m-%d')
-    df['state'] = state
+    df['state'] = state.lower()
+    df = df[final_columns]
     return df.reset_index(drop=True)
 
 def _load(df):
@@ -80,16 +66,48 @@ def _load(df):
 
     return df.reset_index(drop=True)
 
+def _load_database(df) -> pd.DataFrame:
+    print("....writing to database")
+
+    database = "votetracker"
+    db_connection = Database(database)
+    engine = db_connection.get_engine()
+    table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
+
+    # df.to_sql(table_name, con=engine, index=False, if_exists='replace')
+    df.to_sql(table_name, con=engine, index=False, if_exists='replace', dtype=dtype_mapping)
+    return df.reset_index(drop=True)
+
+def _create_indices():
+    # Example usage
+    database = "votetracker"
+    db_connection = Database(database)
+    table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
+    db_connection.create_index(table_name, ["district_link"])
+    db_connection.create_index(table_name, ["precinct_link"])
+    # db_connection.create_index(TABLENAME.lower(), ["physical_id"])
+
+def _create_view():
+    database = "votetracker"
+    db_connection = Database(database)
+
+    table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
+    db_connection.create_view("precincts-current", table_name)
+
 def main():
     df = pd.DataFrame()
-    df = _extract(df)
+    df = read_extract_multiple(df, os.path.join(RAW_DATA_PATH, file_date.strftime('%Y_%m_%d'), TABLENAME.lower()))
     df = _validate(df)
     df = _clean(df)
     if sample:
         print(f"...taking a sample of {sample}")
         df = df.sample(n=sample)
     df = _transform(df)
-    df = _load(df)
+    df = write_load(df, os.path.join(PROCESSED_DATA_PATH, f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip"))
+    df = write_load(df, os.path.join(FINAL_DATA_PATH, f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip"))
+    df = _load_database(df)
+    _create_indices()
+    _create_view()
 
     print(f"File Processed {len(df)} records")
 

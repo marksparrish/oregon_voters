@@ -1,7 +1,14 @@
+"""
+This file contains the data contract for the voterfile module.
+The data contract is a dictionary that defines the columns that are
+expected to be in the voter file and the columns that will be used
+to populate the columns in the database.
+The data contract also defines the data types for the columns in the
+database.
+"""
 import sqlalchemy
 
-STATE="OREGON"
-TABLENAME = "VOTERS"
+TABLENAME = "voters"
 # codes for active voters all others will be ignored
 ACTIVE_VOTERS_CODES = ["A"]
 # data contract to ensure needed votetracker fields are present

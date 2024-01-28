@@ -15,10 +15,9 @@ from common_functions.physical_address import standardize_address
 from common_functions.file_operations import read_extract, write_load, read_extract_multiple
 
 from utils.search import search_client, process_search_results
-from utils.arg_parser import get_date, get_sample
 
-from voterfile_data_contract import DATA_CONTRACT, TABLENAME
-from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH
+from voterfile_data_contract import DATA_CONTRACT, TABLENAME, ACTIVE_VOTERS_CODES
+from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, state, file_date, sample, iteration
 from utils.transformations import initialize_pandarallel, join_columns, mark_homeless_addresses, convert_date_format
 
 initialize_pandarallel()
@@ -48,7 +47,7 @@ def _clean(df):
     # remove bad records, inactive voters and voters with no precinct
     mask = df['state_voter_id'] != 'ACP'
     df = df[mask]
-    mask = df['voter_status'] != 'I'
+    mask = df['voter_status'].isin(ACTIVE_VOTERS_CODES)
     df = df[mask]
     mask = ~df['precinct'].isna()
     df = df[mask]
@@ -66,7 +65,6 @@ def _transform(df) -> pd.DataFrame:
     # Define the confidential birth year
     # Convert the 'BIRTH_DATE' column to integers
     # Replace 'BIRTH_DATE' with 1850 for confidential voters
-    file_date = get_date()
     date2 = datetime(2017, 3, 4)
     if file_date < date2:
         df['birthdate'] = pd.to_datetime(df['birthdate'], errors='coerce')
@@ -92,9 +90,6 @@ def _transform(df) -> pd.DataFrame:
     return df.drop_duplicates(subset="state_voter_id", keep="first").reset_index(drop=True)
 
 def main():
-    file_date = get_date()
-    sample = get_sample()
-
     print(f"Processing raw voter file on {file_date.strftime('%Y-%m-%d')}")
 
     df = pd.DataFrame()

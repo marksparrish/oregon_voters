@@ -18,17 +18,16 @@ import pyarrow.parquet as pq
 from common_functions.common import get_traceback, get_timing
 from common_functions.file_operations import read_extract, write_load
 
-from utils.arg_parser import get_date, get_sample
-
-from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, STATE
-from voterfile_data_contract import DATA_CONTRACT, TABLENAME, dtype_mapping, final_columns
+from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, state, file_date, sample
 from utils.database import Database
+
+from voterfile_data_contract import DATA_CONTRACT, TABLENAME, dtype_mapping, final_columns
 
 def _transform(df) -> pd.DataFrame:
     print("Performing Final Data Transformtion...")
     file_date = get_date()
     df['file_date'] = file_date.strftime('%Y-%m-%d')
-    df['state'] = STATE.lower()
+    df['state'] = state.lower()
     # add column address_type and set to 'residential'
     df['address_type'] = 'residential'
     # update adress_type to 'apartment' if physical_unit_type is empty, null or a blank string
@@ -70,21 +69,25 @@ def _transform(df) -> pd.DataFrame:
 
 def _load_database(df) -> pd.DataFrame:
     print("....writing to database")
-
-    file_date = get_date()
     database = "votetracker"
     db_connection = Database(database)
     engine = db_connection.get_engine()
-    table_name = f"voters-{file_date.strftime('%Y-%m-%d')}"
+    table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
 
     # df.to_sql(table_name, con=engine, index=False, if_exists='replace')
     df.to_sql(table_name, con=engine, index=False, if_exists='replace', dtype=dtype_mapping)
     return df.reset_index(drop=True)
 
-def main():
-    file_date = get_date()
-    sample = get_sample()
+def _create_indics(df):
+    # Example usage
+    database = "votetracker"
+    db_connection = Database(database)
+    db_connection.create_index(TABLENAME.lower(), ["state_voter_id"])
+    db_connection.create_index(TABLENAME.lower(), ["precinct_link"])
+    db_connection.create_index(TABLENAME.lower(), ["physical_id"])
 
+
+def main():
     df = pd.DataFrame()
     df = read_extract(df, os.path.join(FINAL_DATA_PATH, f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip"))
 
