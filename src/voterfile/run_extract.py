@@ -22,9 +22,13 @@ def main():
 
     for folder_name in folder_names:
         date_format = folder_name.replace('_', '-')
-        command = f'python voterfile/voters_extract.py --date={date_format}'
-        logging.info(f"Executing: {command}")
-        return_code = os.system(command)
+        extract = f'python voterfile/voters_extract.py --date={date_format}'
+        transform = f'python voterfile/voters_transform.py --date={date_format}'
+        # load = f'python voterfile/voters_load.py --date={date_format}'
+        logging.info(f"Executing: {extract}")
+        return_code = os.system(extract)
+        logging.info(f"Executing: {transform}")
+        return_code = os.system(transform)
         if return_code != 0:
             logging.error(f"Command failed with return code {return_code}: {command}")
         else:

@@ -11,25 +11,19 @@ import time
 from datetime import datetime
 import pandas as pd
 from common_functions.common import get_traceback, get_timing
-from utils.arg_parser import get_date_and_sample
-from utils.config import DATA_FILES
-from voterfile_data_contract import DATA_CONTRACT, STATE, TABLENAME
+from common_functions.physical_address import standardize_address
+from common_functions.file_operations import read_extract, write_load, read_extract_multiple
+
+from utils.search import search_client, process_search_results
+from utils.arg_parser import get_date, get_sample
+
+from voterfile_data_contract import DATA_CONTRACT, TABLENAME
+from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH
+from utils.transformations import initialize_pandarallel, join_columns, mark_homeless_addresses, convert_date_format
+
+initialize_pandarallel()
 
 # Get the date and sample values using the imported function
-file_date, sample = get_date_and_sample()
-raw_data_path = os.path.join(DATA_FILES, STATE.lower(), 'voter_lists', 'raw', file_date.strftime('%Y_%m_%d'), TABLENAME.lower())
-processed_data_path = os.path.join(DATA_FILES, STATE.lower(), 'voter_lists', 'processed', f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip")
-final_data_path = os.path.join(DATA_FILES, STATE.lower(), 'voter_lists', 'final', f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip")
-
-def _extract(df) -> pd.DataFrame:
-    print("Extracting Data...")
-    for file in os.listdir(raw_data_path):
-        if file.endswith(".txt"):
-            print(os.path.join(raw_data_path, file))
-            temp_df = pd.read_csv(os.path.join(raw_data_path, file), sep='\t', dtype=str, low_memory=False, encoding_errors='ignore', on_bad_lines='skip')
-            df = pd.concat([df, temp_df], ignore_index=True)
-
-    return df.reset_index(drop=True)
 
 def _validate(df):
     print("Validating...", end=" ")
@@ -47,7 +41,6 @@ def _validate(df):
     print("Done")
     return vdf.reset_index(drop=True)
 
-
 def _clean(df):
     print(f"Cleaning data - {len(df)}")
     # You can continue working with the modified DataFrame 'df'
@@ -60,14 +53,7 @@ def _clean(df):
     mask = ~df['precinct'].isna()
     df = df[mask]
 
-    # Define the default date value
-    default_date = '1900-01-01'
-    # Convert 'registration_date' column to datetime with the original format
-    date_format = '%Y-%m-%d'
-    # Try to parse the dates, and create a mask for invalid dates (NaT)
-    df['registration_date'] = pd.to_datetime(df['registration_date'], format=date_format, errors='coerce')
-    # Replace invalid dates with the default date
-    df['registration_date'].fillna(default_date, inplace=True)
+    df['registration_date'] = df['registration_date'].parallel_apply(convert_date_format)
     # De-dupe and sort the DataFrame in one step
     df = df.sort_values(by='registration_date', ascending=False).drop_duplicates(subset='state_voter_id', keep='first').reset_index(drop=True)
 
@@ -80,6 +66,7 @@ def _transform(df) -> pd.DataFrame:
     # Define the confidential birth year
     # Convert the 'BIRTH_DATE' column to integers
     # Replace 'BIRTH_DATE' with 1850 for confidential voters
+    file_date = get_date()
     date2 = datetime(2017, 3, 4)
     if file_date < date2:
         df['birthdate'] = pd.to_datetime(df['birthdate'], errors='coerce')
@@ -104,23 +91,21 @@ def _transform(df) -> pd.DataFrame:
 
     return df.drop_duplicates(subset="state_voter_id", keep="first").reset_index(drop=True)
 
-def _load(df) -> pd.DataFrame:
-    print('Loading data...')
-    print("...saving processed data")
-    df.to_parquet(processed_data_path, index=False, compression='gzip')
-
-    return df.reset_index(drop=True)
-
 def main():
+    file_date = get_date()
+    sample = get_sample()
+
+    print(f"Processing raw voter file on {file_date.strftime('%Y-%m-%d')}")
+
     df = pd.DataFrame()
-    df = _extract(df)
+    df = read_extract_multiple(df, os.path.join(RAW_DATA_PATH, file_date.strftime('%Y_%m_%d'), TABLENAME.lower()))
     df = _validate(df)
     df = _clean(df)
     if sample > 0:
         print(f"...taking a sample of {sample}")
         df = df.sample(n=sample)
     df = _transform(df)
-    df = _load(df)
+    df = write_load(df, os.path.join(PROCESSED_DATA_PATH, f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip"))
 
     print(f"File Processed {len(df)} records")
     print(f"File Processed {len(df.columns)} columns")
@@ -130,7 +115,6 @@ def main():
 if __name__ == "__main__":
     process_time = time.time()
     try:
-        print(f"Processing raw voter file on {file_date.strftime('%Y-%m-%d')}")
         main()
     except Exception as e:
         print('------Start--------')

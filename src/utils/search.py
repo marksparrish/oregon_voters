@@ -121,10 +121,7 @@ def process_search_results(search_results):
         hit = search_results['hits']['hits'][0]
         return handle_single_result(hit)
 
-    if hits_count > 1:
-        return handle_multiple_results()
-
-    return handle_no_results()
+    return handle_not_found()
 
 def handle_single_result(hit):
     physical_id = hit["_id"]
@@ -145,9 +142,9 @@ def handle_single_result(hit):
         "PropertyLongitude": str(hit['_source'].get("PropertyLongitude"))
     })
 
-def handle_multiple_results():
+def handle_not_found():
     return pd.Series({
-        "results": "Too Many Results",
+        "results": "Not Found",
         "physical_id": "",
         "PropertyAddressFull": "",
         "PropertyAddressHouseNumber": "",
@@ -162,24 +159,5 @@ def handle_multiple_results():
         "PropertyLatitude": "",
         "PropertyLongitude": ""
     })
-
-def handle_no_results():
-    return pd.Series({
-        "results": "No Results",
-        "physical_id": "",
-        "PropertyAddressFull": "",
-        "PropertyAddressHouseNumber": "",
-        "PropertyAddressStreetDirection": "",
-        "PropertyAddressStreetName": "",
-        "PropertyAddressStreetSuffix": "",
-        "PropertyAddressCity": "",
-        "PropertyAddressState": "",
-        "PropertyAddressZIP": "",
-        "PropertyAddressZIP4": "",
-        "PropertyAddressCRRT": "",
-        "PropertyLatitude": "",
-        "PropertyLongitude": ""
-    })
-
 
 search_client = MyExtendedElasticsearch(es_host, ca_cert_path, es_username, es_password)

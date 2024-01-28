@@ -1,49 +1,56 @@
-# data transformations raw data will be transformed into the required data.
-# other transformations can be added in any of the raw, processed or final files as needed
-# this can be completely ignored and all data transformations can be done the files
-DATA_TRANSFORMATIONS = (
-    {'column': ['birthdate'],
-        'action': {
-            'type':'cast_date',
-            'column': ['birthdate'],
-            'kwargs': {},
-            'series': 0
-        }
-    },
+import re
+import pandas as pd
+# Initialize pandarallel
+from pandarallel import pandarallel
 
-    {'column': ['registration_date'],
-        'action': {
-            'type':'cast_date',
-            'column': ['registration_date'],
-            'kwargs': {},
-            'series': 0
-        }
-    },
+def initialize_pandarallel():
+    pandarallel.initialize(progress_bar=True, use_memory_fs=False)
 
-    {'column': ['confidential'],
-        'action': {
-            'type': 'confidential_voter',
-            'column': ['physical_city'],
-            'kwargs': {},
-            'series': 0
-        }
-    },
+def join_columns(df, columns, new_column_name, sep=' ') -> pd.DataFrame:
+    """
+    Join multiple columns into a single column
+    """
+    df[new_column_name] = df[columns].parallel_apply(lambda x: sep.join(x.dropna().astype(str)), axis=1)
+    return df
 
-    {'column': ['precinct_link'],
-        'action': {
-            'type': 'join_columns',
-            'column': ['county', 'precinct', 'split'],
-            'kwargs': {'sep': '_',},
-            'series': 0
-        }
-    },
+def mark_homeless_addresses(df, tests):
+    """
+    Mark rows as 'Homeless' based on various string tests provided in a list of tuples.
 
-    {'column': ['gender'],
-        'action': {
-            'type': 'assume_gender',
-            'column': ['name_first', 'name_middle'],
-            'kwargs': {},
-            'series': 0
-        },
-    },
-)
+    :param df: DataFrame to process
+    :param tests: List of tuples where each tuple contains (column, test_type, condition)
+    :return: Modified DataFrame
+    """
+
+    # Initialize an empty mask
+    mask = pd.Series(False, index=df.index)
+
+    # Apply tests from the list
+    columns = ['physical_address_1', 'physical_address_2']
+    for column in columns:
+        for test_type, condition in tests:
+            if test_type == 'contains':
+                mask |= df[column].str.contains(condition, na=False, flags=re.IGNORECASE)
+            elif test_type == 'startswith':
+                mask |= df[column].str.startswith(condition, na=False)
+
+    # Mark rows as 'Homeless'
+    df.loc[mask, 'results'] = 'Homeless'
+    return df
+
+def convert_date_format(date_str):
+    """
+    Convert a date string from 'mm-dd-yyyy' format to 'yyyy-mm-dd' format.
+
+    Parameters:
+    date_str (str): A date string in 'mm-dd-yyyy' format.
+
+    Returns:
+    str: The date string in 'yyyy-mm-dd' format.
+    """
+    try:
+        month, day, year = date_str.split('-')
+        return f'{year}-{month}-{day}'
+    except ValueError:
+        # Handle the case where the input does not match the expected format
+        return None  # or raise an exception, or handle it in another way

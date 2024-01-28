@@ -15,6 +15,8 @@ common_functions = {path = "/Users/markparrish/pip/data_processing/common_functi
 pyarrow = "^14.0.2"
 python-dotenv = "^1.0.0"
 pandarallel = "^1.6.5"
+sqlalchemy = "^2.0.25"
+pymysql = "^1.1.0"
 
 [build-system]
 requires = ["poetry-core"]

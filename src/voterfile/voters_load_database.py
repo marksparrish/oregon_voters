@@ -4,58 +4,90 @@ database and elasticsearch index.
 Database will be named votetracker_{state}_voters_{file_date}
 Index will be named votetracker_{state}_voters_{file_date}
 """
+
 import sys
 sys.path.append(r'../src')
+import os
 import time
 from datetime import datetime
-
-sys.path.append('/app')
-
-import numpy as np
 import pandas as pd
+import numpy as np
 import pyarrow.parquet as pq
-from config import STATE
-from config.cli import FILE_DATE, SAMPLE
-from config.common import get_timing, get_traceback
-from config.database import Database, db_connections
 
-file_date = FILE_DATE
-sample = SAMPLE
-table_name = 'voters'
-index_name = 'voters'
-state = STATE
 
-credentials = db_connections['pip']
-database = f"oregon_votetracker_attributes"
-db = Database(credentials=credentials, database=database)
+from common_functions.common import get_traceback, get_timing
+from common_functions.file_operations import read_extract, write_load
 
-def _extract(df) -> pd.DataFrame:
-    print("Extracting Data...")
-    # get file names
-    file_path = f"/data/{state}/voter_lists/final/{file_date.strftime('%Y.%m.%d')}.{table_name}.gzip"
-    print(file_path)
-    df = pq.read_table(source=file_path).to_pandas()
+from utils.arg_parser import get_date, get_sample
 
-    return df.reset_index(drop=True)
+from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, STATE
+from voterfile_data_contract import DATA_CONTRACT, TABLENAME, dtype_mapping, final_columns
+from utils.database import Database
 
 def _transform(df) -> pd.DataFrame:
-    df.drop(columns=['whole_address', 'whole_commas', 'whole_street'], inplace=True)
-    df.drop(columns=['mail_address_3', 'mail_address_4'], inplace=True)
+    print("Performing Final Data Transformtion...")
+    file_date = get_date()
     df['file_date'] = file_date.strftime('%Y-%m-%d')
-    df['state'] = state
+    df['state'] = STATE.lower()
+    # add column address_type and set to 'residential'
+    df['address_type'] = 'residential'
+    # update adress_type to 'apartment' if physical_unit_type is empty, null or a blank string
+    df.loc[df['physical_unit_type'] != '', 'address_type'] = 'apartment'
+
+    # ensure birthdate is a date
+    # if only year is present, set to Jan 1 of that year
+    df['birthdate'] = df['birthdate'].astype(str)
+    df.loc[df['birthdate'].str.len() == 4, 'birthdate'] = df['birthdate'] + '-01-01'
+
+    # ensure PropertyLatitude and PropertyLongitude are numeric
+    df['PropertyLatitude'] = pd.to_numeric(df['PropertyLatitude'], errors='coerce')
+    df['PropertyLongitude'] = pd.to_numeric(df['PropertyLongitude'], errors='coerce')
+
+    # Create a mask for rows where 'results' is 'Not Found'
+    mask = df['results'] == 'Not Found'
+
+    # Update 'PropertyAddressFull' for rows matching the mask
+    df.loc[mask, 'physical_id'] = 'Not-Found-' + df['physical_address_1'] + ' ' + df['physical_address_2']
+    df.loc[mask, 'PropertyAddressFull'] = df['physical_address_1'] + ' ' + df['physical_address_2']
+    df.loc[mask, 'PropertyAddressCity'] = df['physical_city']
+    df.loc[mask, 'PropertyAddressState'] = df['physical_state']
+    df.loc[mask, 'PropertyAddressZIP'] = df['physical_zip_code']
+
+    mask = df['results'] == 'Homeless'
+
+    # Update 'PropertyAddressFull' for rows matching the mask
+    df.loc[mask, 'physical_id'] = 'Homeless'
+    df.loc[mask, 'PropertyAddressFull'] = 'Homeless'
+    df.loc[mask, 'PropertyAddressCity'] = 'Homeless'
+    df.loc[mask, 'PropertyAddressState'] = 'Homeless'
+    df.loc[mask, 'PropertyAddressZIP'] = 'Homeless'
+    df.loc[mask, 'address_type'] = 'Homeless'
+
+    # drop columns
+    df = df[final_columns]
+
     return df.reset_index(drop=True)
 
 def _load_database(df) -> pd.DataFrame:
     print("....writing to database")
-    # sql = f"TRUNCATE {table_name}"
-    # db.conn_raw().cursor().execute(sql)
-    # df = df[db.create_drop_model_table()]
-    print(df.columns)
+
+    file_date = get_date()
+    database = "votetracker"
+    db_connection = Database(database)
+    engine = db_connection.get_engine()
+    table_name = f"voters-{file_date.strftime('%Y-%m-%d')}"
+
+    # df.to_sql(table_name, con=engine, index=False, if_exists='replace')
+    df.to_sql(table_name, con=engine, index=False, if_exists='replace', dtype=dtype_mapping)
     return df.reset_index(drop=True)
 
 def main():
+    file_date = get_date()
+    sample = get_sample()
+
     df = pd.DataFrame()
-    df = _extract(df)
+    df = read_extract(df, os.path.join(FINAL_DATA_PATH, f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip"))
+
     if sample > 0:
         print(f"...taking a sample of {sample}")
         df = df.sample(n=sample)
@@ -67,7 +99,7 @@ def main():
 if __name__ == "__main__":
     process_time = time.time()
     try:
-        print(f"Processing processed voter file on {file_date.strftime('%Y-%m-%d')}")
+        print(f"Starting {os.path.basename(__file__)}")
         main()
     except Exception as e:
         print('------Start--------')
