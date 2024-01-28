@@ -19,7 +19,7 @@ from common_functions.physical_address import standardize_address
 from common_functions.file_operations import read_extract, write_load
 from utils.search import search_client, process_search_results
 
-from voterfile_data_contract import DATA_CONTRACT, TABLENAME
+from data_contracts.voterfile_data_contract import DATA_CONTRACT, TABLENAME
 from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, state, file_date, sample, iteration
 from utils.transformations import initialize_pandarallel, join_columns, mark_homeless_addresses
 

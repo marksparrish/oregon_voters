@@ -92,7 +92,7 @@ def _create_view():
     db_connection = Database(database)
 
     table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
-    db_connection.create_view("precincts-current", table_name)
+    db_connection.create_view(f"{TABLENAME.lower()}-current", table_name)
 
 def main():
     df = pd.DataFrame()

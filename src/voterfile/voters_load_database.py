@@ -21,11 +21,11 @@ from common_functions.file_operations import read_extract, write_load
 from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, state, file_date, sample
 from utils.database import Database
 
-from voterfile_data_contract import DATA_CONTRACT, TABLENAME, dtype_mapping, final_columns
+from data_contracts.voterfile_data_contract import DATA_CONTRACT, TABLENAME, dtype_mapping, final_columns
 
 def _transform(df) -> pd.DataFrame:
     print("Performing Final Data Transformtion...")
-    file_date = get_date()
+
     df['file_date'] = file_date.strftime('%Y-%m-%d')
     df['state'] = state.lower()
     # add column address_type and set to 'residential'
@@ -78,14 +78,21 @@ def _load_database(df) -> pd.DataFrame:
     df.to_sql(table_name, con=engine, index=False, if_exists='replace', dtype=dtype_mapping)
     return df.reset_index(drop=True)
 
-def _create_indics(df):
+def _create_indics():
     # Example usage
     database = "votetracker"
     db_connection = Database(database)
-    db_connection.create_index(TABLENAME.lower(), ["state_voter_id"])
-    db_connection.create_index(TABLENAME.lower(), ["precinct_link"])
-    db_connection.create_index(TABLENAME.lower(), ["physical_id"])
+    table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
+    db_connection.create_index(table_name, ["state_voter_id"])
+    db_connection.create_index(table_name, ["precinct_link"])
+    db_connection.create_index(table_name, ["physical_id"])
 
+def _create_view():
+    database = "votetracker"
+    db_connection = Database(database)
+
+    table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
+    db_connection.create_view(f"{TABLENAME.lower()}-current", table_name)
 
 def main():
     df = pd.DataFrame()
@@ -95,8 +102,9 @@ def main():
         print(f"...taking a sample of {sample}")
         df = df.sample(n=sample)
     df = _transform(df)
-    df = _load_database(df)
-
+    _load_database(df)
+    _create_indics()
+    _create_view()
     print(f"File Processed {len(df)} records")
 
 if __name__ == "__main__":
