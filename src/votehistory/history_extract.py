@@ -4,34 +4,24 @@
     initial cleaning (removing of unwanted records) and casting of columns into
     the right format.
 """
-import os
 import sys
+sys.path.append(r'../src')
+import os
 import time
-
-sys.path.append('/app')
-
+from datetime import datetime
 import pandas as pd
-from config.cli import FILE_DATE, SAMPLE
-from config.common import get_timing, get_traceback
+from common_functions.common import get_traceback, get_timing
+from common_functions.physical_address import standardize_address
+from common_functions.file_operations import read_extract, write_load, read_extract_multiple
 
-from history import DATA_CONTRACT, STATE, TABLENAME
+from utils.search import search_client, process_search_results
 
-file_date = FILE_DATE
-sample = SAMPLE
-state = STATE
-tablename = TABLENAME
+from data_contracts.votehistory_data_contract import DATA_CONTRACT, TABLENAME
+from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, state, file_date, sample, iteration
+from utils.transformations import initialize_pandarallel, join_columns, mark_homeless_addresses, convert_date_format
+from utils.file_operations import validate_dataframe
 
-def _extract(df):
-    print("Extracting Data...")
-    # get file names
-    file_path = f"/voterdata/{state}/voter_lists/raw/{file_date.strftime('%Y_%m_%d')}/{tablename}"
-    print(file_path)
-    for file in os.listdir(file_path):
-        if file.endswith(".txt"):
-            print(os.path.join(file_path, file))
-            temp_df = pd.read_csv(os.path.join(file_path, file), sep='\t', dtype=str, low_memory=False, encoding_errors='ignore', on_bad_lines='skip')
-            df = pd.concat([df, temp_df], ignore_index=True)
-    return df.reset_index(drop=True)
+initialize_pandarallel()
 
 def _clean(df):
     print("Cleaning data")
@@ -44,32 +34,33 @@ def _clean(df):
 
     return df.reset_index(drop=True)
 
-def _validate(df):
-    print("...validating", end =" ")
-
-    # we only have to validate one column - state_voter_id
-    print("...renaming voter id column", end =" ")
-
-    df_columns = df.columns
-    for key, possible_headers in DATA_CONTRACT.items():
-        # keep if any header in headers is in the df.columns
-        in_df = False
-        for heading in possible_headers:
-            # capture heading as the column we need in the validated df (vdf)
-            if heading in df_columns:
-                in_df = heading
-
-        if in_df:
-            df = df.rename(columns = {in_df: key})
-        else:
-            raise ValueError(f"Broken Contract!@! for {key, possible_headers, df_columns}")
-    print("...done")
-    return df.reset_index(drop=True)
-
 def _transform(df):
     print('Transforming data...', end =" ")
-
+    for h in list(df):
+        print(f"renaming or dropping {h}...", end =" ")
+        try:
+            new_header = datetime.strptime(h, "%m/%d/%Y").strftime("%Y-%m-%d")
+            df = df.rename(columns = {h: new_header})
+            print(f"...renaming to {new_header}")
+            df[new_header] = df[new_header].fillna('ITV')
+            df.loc[df[new_header].str.contains('-'), new_header] = 'ITV'
+            df[new_header] = df[new_header].str.upper()
+        except ValueError as e:
+            if h == "state_voter_id":
+                print(f"skipping {h}")
+            else:
+                print(f"...droping {h}")
+                df = df.drop(columns=[h])
+    df = pd.melt(df, id_vars=['state_voter_id'],  value_name='voted', var_name='election_date')
+    print("Droping voters who are ITV (ineligible to vote)", end =" ")
+    df = df[df['voted'] != 'ITV']
     print("...done")
+    print("Adding state column")
+    df['state'] = f"{state}".upper()
+    df['votes_early_days'] = 0
+    df['voted_on_date'] = df['election_date']
+
+    df = df[['state', 'state_voter_id', 'election_date', 'voted', 'votes_early_days', 'voted_on_date']]
     return df.reset_index(drop=True)
 
 def _load(df):
@@ -82,16 +73,20 @@ def _load(df):
     return df.reset_index(drop=True)
 
 def main():
+    print(f"Processing raw vote history file on {file_date.strftime('%Y-%m-%d')}")
+
     df = pd.DataFrame()
-    df = _extract(df)
-    df = _validate(df)
+    df = read_extract_multiple(df, os.path.join(RAW_DATA_PATH, file_date.strftime('%Y_%m_%d'), 'history'))
+    # rename VOTER_ID to state_voter_id
+    df = df.rename(columns = {'VOTER_ID': 'state_voter_id'})
     df = _clean(df)
+    df = _transform(df)
     if sample:
         print(f"...taking a sample of {sample}")
         df = df.sample(n=sample)
-    df = _transform(df)
-    df = _load(df)
-    # print(df)
+    df = write_load(df, os.path.join(PROCESSED_DATA_PATH, f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip"))
+
+    print(df)
 
     print(f"File Processed {len(df)} records")
 

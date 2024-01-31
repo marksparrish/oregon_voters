@@ -1,6 +1,0 @@
-STATE = "OREGON"
-TABLENAME ="HISTORY"
-DATA_CONTRACT = {
-    'state_voter_id': ['VOTER_ID'],
-}
-DATA_TRANSFORMATIONS = ( )

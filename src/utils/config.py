@@ -2,6 +2,11 @@
 import os
 from dotenv import load_dotenv
 from utils.arg_parser import get_date, get_sample, get_iteration
+# Initialize pandarallel
+from pandarallel import pandarallel
+
+def initialize_pandarallel():
+    pandarallel.initialize(progress_bar=True, use_memory_fs=False)
 
 # Specify the path to the .env file at the top level of your project
 dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', '.env')
@@ -25,6 +30,7 @@ ES_PASSWORD=os.environ.get("ES_PASSWORD", "")
 CA_CERT_PATH=os.environ.get("CA_CERT_PATH", "")
 
 # File Paths
+LOGSTASH_DATA_PATH = os.environ.get("LOGSTASH_FILES", "/Volumes/nfs-data/logstash")
 RAW_DATA_PATH = os.path.join(DATA_FILES, state, 'voter_lists', 'raw')
 PROCESSED_DATA_PATH = os.path.join(DATA_FILES, state, 'voter_lists', 'processed')
 FINAL_DATA_PATH = os.path.join(DATA_FILES, state, 'voter_lists', 'final')

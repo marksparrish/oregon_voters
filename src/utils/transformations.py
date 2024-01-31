@@ -1,10 +1,5 @@
 import re
 import pandas as pd
-# Initialize pandarallel
-from pandarallel import pandarallel
-
-def initialize_pandarallel():
-    pandarallel.initialize(progress_bar=True, use_memory_fs=False)
 
 def join_columns(df, columns, new_column_name, sep=' ') -> pd.DataFrame:
     """

@@ -29,25 +29,6 @@ def _clean(df):
 
     return df.reset_index(drop=True)
 
-def _validate(df):
-    print("...validating", end =" ")
-    vdf = pd.DataFrame(data=None)
-    df_columns = df.columns
-    for key, possible_headers in DATA_CONTRACT.items():
-        # keep if any header in headers is in the df.columns
-        in_df = False
-        for heading in possible_headers:
-            # capture heading as the column we need in the validated df (vdf)
-            if heading in df_columns:
-                in_df = heading
-
-        if in_df:
-            vdf[key] = df[in_df].str.strip()
-        else:
-            raise ValueError(f"Broken Contract!@! for {key, possible_headers, df_columns}")
-    print("...done")
-    return vdf.reset_index(drop=True)
-
 def _transform(df):
     print('Transforming data...')
     df['precinct_link'] = df['district_county'] + '-' + df['precinct_number'] + '-' + df['precinct_split']
@@ -55,15 +36,6 @@ def _transform(df):
     df['file_date'] = file_date.strftime('%Y-%m-%d')
     df['state'] = state.lower()
     df = df[final_columns]
-    return df.reset_index(drop=True)
-
-def _load(df):
-    print('Loading data...')
-    print("...saving processed data")
-
-    df.to_parquet(processed_data_path, index=False, compression='gzip')
-    df.to_parquet(final_data_path, index=False, compression='gzip')
-
     return df.reset_index(drop=True)
 
 def _load_database(df) -> pd.DataFrame:
@@ -97,7 +69,7 @@ def _create_view():
 def main():
     df = pd.DataFrame()
     df = read_extract_multiple(df, os.path.join(RAW_DATA_PATH, file_date.strftime('%Y_%m_%d'), TABLENAME.lower()))
-    df = _validate(df)
+    df = validate_dataframe(df, DATA_CONTRACT)
     df = _clean(df)
     if sample:
         print(f"...taking a sample of {sample}")

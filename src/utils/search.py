@@ -1,6 +1,9 @@
 from common_functions.search import MyElasticsearch
 from utils.config import ES_HOST, ES_USERNAME, ES_PASSWORD, CA_CERT_PATH
 import pandas as pd
+from elasticsearch.helpers import streaming_bulk, BulkIndexError
+import tqdm
+import json
 
 # Example usage:
 es_host = ES_HOST
@@ -114,6 +117,9 @@ class MyExtendedElasticsearch(MyElasticsearch):
         response = self.client.options(basic_auth=(self.username, self.password)).search(index=index_name, body=query)
         return response
 
+search_client = MyExtendedElasticsearch(es_host, ca_cert_path, es_username, es_password)
+
+
 def process_search_results(search_results):
     hits_count = len(search_results['hits']['hits'])
 
@@ -160,4 +166,44 @@ def handle_not_found():
         "PropertyLongitude": ""
     })
 
-search_client = MyExtendedElasticsearch(es_host, ca_cert_path, es_username, es_password)
+def generate_actions(df):
+    for index, row in df.iterrows():
+        yield {
+            "_id": index,
+            "_source": row.to_dict(),
+        }
+
+def index_documents(df, index_name):
+    """Bulk index the dataframe into Elasticsearch."""
+    number_of_docs = len(df)
+    progress = tqdm.tqdm(unit="docs", total=number_of_docs)
+    successes = 0
+    failures = 0
+
+    try:
+        for ok, action in streaming_bulk(
+            search_client.client.options(basic_auth=(es_username, es_password)),
+            index=index_name, actions=generate_actions(df),
+        ):
+            progress.update(1)
+            if ok:
+                successes += 1
+            else:
+                failures += 1
+                # Log the failed action
+                with open('failed_documents.log', 'a') as log_file:
+                    log_file.write(json.dumps(action) + '\n')
+
+    except BulkIndexError as e:
+        for i, error in enumerate(e.errors):
+            print(f"Error {i+1}: {error}")
+            print('---------------------')
+            failures += 1
+            # Log the error
+            with open('failed_documents.log', 'a') as log_file:
+                log_file.write(json.dumps(error) + '\n')
+        print(f"Error indexing documents: {e}")
+
+    print("Indexed %d/%d documents" % (successes, number_of_docs))
+    if failures > 0:
+        print(f"Failed to index {failures} document(s). Check 'failed_documents.log' for details.")

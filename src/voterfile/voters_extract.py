@@ -19,26 +19,10 @@ from utils.search import search_client, process_search_results
 from data_contracts.voterfile_data_contract import DATA_CONTRACT, TABLENAME, ACTIVE_VOTERS_CODES
 from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, state, file_date, sample, iteration
 from utils.transformations import initialize_pandarallel, join_columns, mark_homeless_addresses, convert_date_format
-
+from utils.file_operations import validate_dataframe
 initialize_pandarallel()
 
 # Get the date and sample values using the imported function
-
-def _validate(df):
-    print("Validating...", end=" ")
-
-    vdf = pd.DataFrame()
-
-    for key, possible_headers in DATA_CONTRACT.items():
-        matching_columns = df.columns[df.columns.isin(possible_headers)]
-
-        if len(matching_columns) > 0:
-            vdf[key] = df[matching_columns[0]].str.strip()
-        else:
-            raise ValueError(f"Broken Contract! Missing columns for {key}: {possible_headers}")
-
-    print("Done")
-    return vdf.reset_index(drop=True)
 
 def _clean(df):
     print(f"Cleaning data - {len(df)}")
@@ -94,7 +78,7 @@ def main():
 
     df = pd.DataFrame()
     df = read_extract_multiple(df, os.path.join(RAW_DATA_PATH, file_date.strftime('%Y_%m_%d'), TABLENAME.lower()))
-    df = _validate(df)
+    df = validate_dataframe(df, DATA_CONTRACT)
     df = _clean(df)
     if sample > 0:
         print(f"...taking a sample of {sample}")
