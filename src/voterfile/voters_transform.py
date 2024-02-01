@@ -19,17 +19,9 @@ from common_functions.physical_address import standardize_address
 from common_functions.file_operations import read_extract, write_load
 from utils.search import search_client, process_search_results
 
-from data_contracts.voterfile_data_contract import DATA_CONTRACT, TABLENAME
-from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, state, file_date, sample, iteration
-from utils.transformations import initialize_pandarallel, join_columns, mark_homeless_addresses
-
-initialize_pandarallel()
-
-def truncate_words(address, max_length=10):
-    # Split the address into words and truncate each word to max_length
-    truncated_words = [word[:max_length] for word in address.split()]
-    # Join the truncated words back into a string
-    return ' '.join(truncated_words)
+from data_contracts.voterfile_data_contract import DATA_CONTRACT, TABLENAME, final_columns
+from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, state, file_date, sample, iteration, initialize_pandarallel
+from utils.transformations import join_columns, mark_homeless_addresses
 
 def search_for_address(address):
     index_name = "places"
@@ -141,7 +133,7 @@ def _transform_pass_07(df, columns_to_update) -> pd.DataFrame:
 def _transform_pass_final(df, columns_to_update) -> pd.DataFrame:
     return df
 
-def _transform(df, iteration) -> pd.DataFrame:
+def _transform_address(df, iteration) -> pd.DataFrame:
     """
     Transform addresses (mail and physical) into standard formats
     Create hash from standard addresses
@@ -211,6 +203,49 @@ def _transform(df, iteration) -> pd.DataFrame:
     # df = df.drop('find_address', axis=1)
     return df.reset_index(drop=True)
 
+def _transform_main(df, iteration) -> pd.DataFrame:
+    print("Performing Final Data Transformtion...")
+
+    df['file_date'] = file_date.strftime('%Y-%m-%d')
+    df['state'] = state.lower()
+    # add column address_type and set to 'residential'
+    df['address_type'] = 'residential'
+    # update adress_type to 'apartment' if physical_unit_type is empty, null or a blank string
+    df.loc[df['physical_unit_type'] != '', 'address_type'] = 'apartment'
+
+    # ensure birthdate is a date
+    # if only year is present, set to Jan 1 of that year
+    df['birthdate'] = df['birthdate'].astype(str)
+    df.loc[df['birthdate'].str.len() == 4, 'birthdate'] = df['birthdate'] + '-01-01'
+
+    # ensure PropertyLatitude and PropertyLongitude are numeric
+    df['PropertyLatitude'] = pd.to_numeric(df['PropertyLatitude'], errors='coerce')
+    df['PropertyLongitude'] = pd.to_numeric(df['PropertyLongitude'], errors='coerce')
+
+    # Create a mask for rows where 'results' is 'Not Found'
+    mask = df['results'] == 'Not Found'
+
+    # Update 'PropertyAddressFull' for rows matching the mask
+    df.loc[mask, 'physical_id'] = 'Not-Found-' + df['physical_address_1'] + ' ' + df['physical_address_2']
+    df.loc[mask, 'PropertyAddressFull'] = df['physical_address_1'] + ' ' + df['physical_address_2']
+    df.loc[mask, 'PropertyAddressCity'] = df['physical_city']
+    df.loc[mask, 'PropertyAddressState'] = df['physical_state']
+    df.loc[mask, 'PropertyAddressZIP'] = df['physical_zip_code']
+
+    mask = df['results'] == 'Homeless'
+
+    # Update 'PropertyAddressFull' for rows matching the mask
+    df.loc[mask, 'physical_id'] = 'Homeless'
+    df.loc[mask, 'PropertyAddressFull'] = 'Homeless'
+    df.loc[mask, 'PropertyAddressCity'] = 'Homeless'
+    df.loc[mask, 'PropertyAddressState'] = 'Homeless'
+    df.loc[mask, 'PropertyAddressZIP'] = 'Homeless'
+    df.loc[mask, 'address_type'] = 'Homeless'
+
+    # drop columns
+    df = df[final_columns]
+
+    return df.reset_index(drop=True)
 
 def main():
     # Get the date and sample values using the imported function
@@ -229,8 +264,8 @@ def main():
     if sample:
         print(f"...taking a sample of {sample}")
         df = df.sample(n=sample)
-    df = _transform(df, iteration)
-
+    df = _transform_address(df, iteration)
+    df = _transform_main(df, iteration)
     # we only write the final file if we are running all iterations
     if iteration == 0:
         df = write_load(df, os.path.join(FINAL_DATA_PATH, f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip"))

@@ -57,7 +57,7 @@ def _create_indices():
     table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
     db_connection.create_index(table_name, ["district_link"])
     db_connection.create_index(table_name, ["precinct_link"])
-    # db_connection.create_index(TABLENAME.lower(), ["physical_id"])
+    db_connection.create_index(table_name, ["district_type", "district_name"])
 
 def _create_view():
     database = "votetracker"

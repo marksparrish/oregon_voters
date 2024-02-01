@@ -8,6 +8,8 @@ from pandarallel import pandarallel
 def initialize_pandarallel():
     pandarallel.initialize(progress_bar=True, use_memory_fs=False)
 
+initialize_pandarallel()
+
 # Specify the path to the .env file at the top level of your project
 dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', '.env')
 # Load environment variables from the specified .env file
