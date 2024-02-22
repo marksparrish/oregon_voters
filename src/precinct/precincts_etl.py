@@ -10,15 +10,17 @@ import os
 import time
 from datetime import datetime
 import pandas as pd
+import glob
 
-from common_functions.common import get_traceback, get_timing
+from common_functions.common import get_traceback, get_timing, cast_date, timing_decorator
 from common_functions.file_operations import read_extract, write_load, read_extract_multiple
 
-from utils.arg_parser import get_date, get_sample
-
-from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, state, file_date, sample
-from data_contracts.precinct_data_contract import DATA_CONTRACT, TABLENAME, dtype_mapping, final_columns
+from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, LOGSTASH_DATA_PATH, state, file_date, sample
 from utils.database import Database
+from utils.dataframe_operations import validate_dataframe
+from utils.transformations import convert_date_format
+from data_contracts.precinct_data_contract import DATA_CONTRACT, TABLENAME, dtype_mapping, final_columns
+
 
 def _clean(df):
     print("Cleaning data")
@@ -66,6 +68,25 @@ def _create_view():
     table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
     db_connection.create_view(f"{TABLENAME.lower()}-current", table_name)
 
+def _load_es(df) -> pd.DataFrame:
+    """
+    Loads the DataFrame into an Elasticsearch index and returns the modified DataFrame.
+
+    Args:
+        df (pd.DataFrame): The DataFrame to be loaded.
+
+    Returns:
+        pd.DataFrame: The modified DataFrame after loading.
+    """
+    print('Loading')
+    print('...writing to index')
+    curr_dt = datetime.now()
+    timestamp = int(round(curr_dt.timestamp()))
+    file = f"{LOGSTASH_DATA_PATH}/{TABLENAME.lower()}/{timestamp}.csv"
+    df.to_csv(file, index=False, header=False)
+
+    return df.reset_index(drop=True)
+
 def main():
     df = pd.DataFrame()
     df = read_extract_multiple(df, os.path.join(RAW_DATA_PATH, file_date.strftime('%Y_%m_%d'), TABLENAME.lower()))
@@ -80,6 +101,8 @@ def main():
     df = _load_database(df)
     _create_indices()
     _create_view()
+    df = _load_es(df)
+    # print(df.columns)
 
     print(f"File Processed {len(df)} records")
 
