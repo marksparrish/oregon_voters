@@ -18,7 +18,7 @@ import pyarrow.parquet as pq
 from common_functions.common import get_traceback, get_timing
 from common_functions.file_operations import read_extract, write_load
 
-from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, state, file_date, sample
+from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, state, file_date, sample, DB_DATABASE
 from utils.database import Database
 
 from data_contracts.voterfile_data_contract import DATA_CONTRACT, TABLENAME, dtype_mapping, final_columns
@@ -26,8 +26,8 @@ from data_contracts.voterfile_data_contract import DATA_CONTRACT, TABLENAME, dty
 
 def _load_database(df) -> pd.DataFrame:
     print("....writing to database")
-    database = "votetracker"
-    db_connection = Database(database)
+    db_connection = Database(DB_DATABASE)
+    print(f"Writing to database {DB_DATABASE}")
     engine = db_connection.get_engine()
     table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
 
@@ -37,16 +37,15 @@ def _load_database(df) -> pd.DataFrame:
 
 def _create_indices():
     # Example usage
-    database = "votetracker"
-    db_connection = Database(database)
+    db_connection = Database(DB_DATABASE)
     table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
     db_connection.create_index(table_name, ["state_voter_id"])
     db_connection.create_index(table_name, ["precinct_link"])
     db_connection.create_index(table_name, ["physical_id"])
 
 def _create_view():
-    database = "votetracker"
-    db_connection = Database(database)
+    database = DB_DATABASE
+    db_connection = Database(DB_DATABASE)
 
     table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
     db_connection.create_view(f"{TABLENAME.lower()}-current", table_name)

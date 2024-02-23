@@ -12,6 +12,7 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 import pyarrow.parquet as pq
+import gender_guesser.detector as gender
 
 
 from common_functions.common import get_traceback, get_timing
@@ -22,6 +23,8 @@ from utils.search import search_client, process_search_results
 from data_contracts.voterfile_data_contract import DATA_CONTRACT, TABLENAME, final_columns
 from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, state, file_date, sample, iteration, initialize_pandarallel
 from utils.transformations import join_columns, mark_homeless_addresses
+
+gd = gender.Detector(case_sensitive=False)
 
 def search_for_address(address):
     index_name = "places"
@@ -242,6 +245,21 @@ def _transform_main(df, iteration) -> pd.DataFrame:
     df.loc[mask, 'PropertyAddressZIP'] = 'Homeless'
     df.loc[mask, 'address_type'] = 'Homeless'
 
+    # add gender column
+    print("...guessing gender based on first and middle names")
+    # df['gender'] = df.parallel_apply(lambda row: assume_gender(row['name_first'], row['name_middle']), axis=1)
+    df['gender'] = df['name_first'].map(lambda x: gd.get_gender(x, country='usa'))
+
+    # create a mask based on gender being unknown, andy, mostly_male, or mostly_female
+    # then guess based on middle name
+    mask = df['gender'].isin(['unknown', 'andy', 'mostly_male', 'mostly_female'])
+    df['gender'] = df['name_middle'].map(lambda x: gd.get_gender(x, country='usa'))
+
+    # create the same mask and then change their gender value to unknown
+    mask = df['gender'].isin(['unknown', 'andy', 'mostly_male', 'mostly_female'])
+    df.loc[mask, 'gender'] = 'unknown'
+
+
     # drop columns
     df = df[final_columns]
 
@@ -271,6 +289,7 @@ def main():
         df = write_load(df, os.path.join(FINAL_DATA_PATH, f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip"))
     print('')
     print(f"File Processed {len(df)} records")
+    print(df['gender'].value_counts())
 
 
 if __name__ == "__main__":

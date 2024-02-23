@@ -62,7 +62,7 @@ dtype_mapping = {
     'name_middle': sqlalchemy.types.String(length=100),
     'birthdate': sqlalchemy.types.Date(),
     'age': sqlalchemy.types.Integer(),
-    'gender': sqlalchemy.types.String(length=6),
+    'gender': sqlalchemy.types.String(length=7),
     'party_affiliation': sqlalchemy.types.String(length=50),
     'registration_date': sqlalchemy.types.Date(),
     'voter_status': sqlalchemy.types.String(length=50),
