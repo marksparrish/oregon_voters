@@ -138,6 +138,22 @@ class MyExtendedElasticsearch(MyElasticsearch):
 
 search_client = MyExtendedElasticsearch(es_host, ca_cert_path, es_username, es_password)
 
+def search_for_address(address):
+    index_name = "places"
+    search_results = search_client.search_address(index_name, address)
+    return process_search_results(search_results)
+
+def search_for_apartments(address):
+    index_name = "places-previous"
+    search_results = search_client.search_unit_address(index_name, address)
+    return process_search_results(search_results)
+
+
+def search_exact_match_address(house_number, street_name, zip_code):
+    index_name = "places"
+    search_results = search_client.exact_match_address(index_name, house_number, street_name, zip_code)
+    return process_search_results(search_results)
+
 def generate_actions(df):
     for index, row in df.iterrows():
         yield {

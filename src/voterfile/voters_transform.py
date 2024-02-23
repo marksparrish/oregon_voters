@@ -18,123 +18,14 @@ import gender_guesser.detector as gender
 from common_functions.common import get_traceback, get_timing
 from common_functions.physical_address import standardize_address
 from common_functions.file_operations import read_extract, write_load
-from utils.search import search_client, process_search_results
 
 from data_contracts.voterfile_data_contract import DATA_CONTRACT, TABLENAME, final_columns
 from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, state, file_date, sample, iteration, initialize_pandarallel
 from utils.transformations import join_columns, mark_homeless_addresses
 
+from voterfile.transformations.address_passes import _transform_pass_01, _transform_pass_02, _transform_pass_03, _transform_pass_04, _transform_pass_05, _transform_pass_06, _transform_pass_07, _transform_pass_final
+
 gd = gender.Detector(case_sensitive=False)
-
-def search_for_address(address):
-    index_name = "places"
-    search_results = search_client.search_address(index_name, address)
-    return process_search_results(search_results)
-
-def search_for_apartments(address):
-    index_name = "places-previous"
-    search_results = search_client.search_unit_address(index_name, address)
-    return process_search_results(search_results)
-
-
-def search_exact_match_address(house_number, street_name, zip_code):
-    index_name = "places"
-    search_results = search_client.exact_match_address(index_name, house_number, street_name, zip_code)
-    return process_search_results(search_results)
-
-def update_address_fields(df, mask, search_function):
-    columns_to_update = ["results", "physical_id", "PropertyAddressFull", "PropertyAddressHouseNumber", "PropertyAddressStreetDirection", "PropertyAddressStreetName", "PropertyAddressStreetSuffix", "PropertyAddressCity", "PropertyAddressState", "PropertyAddressZIP", "PropertyAddressZIP4", "PropertyAddressCRRT", "PropertyLatitude", "PropertyLongitude"]
-    df.loc[mask, columns_to_update] = df[mask].apply(lambda x: search_function(x['find_address']), axis=1, result_type="expand")
-
-def _transform_pass_01(df, columns_to_update) -> pd.DataFrame:
-    for column in columns_to_update:
-        df[column] = None
-
-    df['results'] = 'Not Found'
-
-    print("...marking confidential addresses")
-    confidential_mask = df['confidential'] == 'Confidential'
-    df.loc[confidential_mask, 'results'] = 'Confidential'
-    df.loc[confidential_mask, 'physical_id'] = df['precinct_link']
-
-    print("...marking homeless addresses")
-    # Homeless addresses
-    tests = [
-        ('startswith', '00'),
-        ('contains', '@'),
-        ('contains', 'PARKING '),
-        ('contains', 'Lot '),
-        ('contains', 'AROUND '),
-        ('contains', ' & '),
-        ('contains', 'SAFE CAMP'),
-        ('contains', 'CORNER OF '),
-        ('contains', 'BETWEEN '),
-        ('startswith', 'NEAR '),
-        ('startswith', '0 '),
-        ('startswith', 'HOSELESS '),
-        ('startswith', 'HOMELESS '),
-        ('startswith', 'BEHIND '),
-    ]
-
-    # Call the function
-    df = mark_homeless_addresses(df, tests)
-
-    mask = df['physical_address_2'].str.contains(' AND ')
-    df.loc[mask, 'results'] = 'Homeless'
-
-    print(df['results'].value_counts())
-    return df
-
-def _transform_pass_02(df, columns_to_update) -> pd.DataFrame:
-    mask = df['results'] == 'Not Found'
-    df.loc[mask, columns_to_update] = df[mask].parallel_apply(lambda x: search_for_address(x['find_address']), axis=1, result_type="expand")
-    print(df['results'].value_counts())
-    return df
-
-def _transform_pass_03(df, columns_to_update) -> pd.DataFrame:
-    # deal with appartments in the apartment index
-    mask = df['results'] == 'Not Found'
-    # df['find_address'] = df['physical_house_number'].astype(str) + ' ' + df['physical_street_name'].astype(str) + ' ' + df['physical_zip_code'].astype(str) + ' ' + df['physical_unit_number'].astype(str)
-    df.loc[mask, columns_to_update] = df[mask].parallel_apply(lambda x: search_for_apartments(x['find_address']), axis=1, result_type="expand")
-    print(df['results'].value_counts())
-    return df
-
-def _transform_pass_04(df, columns_to_update) -> pd.DataFrame:
-    # deal with appartments in the apartment index
-    mask = df['results'] == 'Not Found'
-    # df['find_address'] = df['physical_house_number'].astype(str) + ' ' + df['physical_street_name'].astype(str) + ' ' + df['physical_zip_code'].astype(str) + ' ' + df['physical_unit_number'].astype(str)
-    df.loc[mask, columns_to_update] = df[mask].parallel_apply(lambda x: search_for_apartments(x['find_address']), axis=1, result_type="expand")
-    print(df['results'].value_counts())
-    return df
-
-def _transform_pass_05(df, columns_to_update) -> pd.DataFrame:
-    mask = df['results'] == 'Not Found'
-    df.loc[mask, columns_to_update] = df[mask].parallel_apply(lambda x: search_exact_match_address(x['physical_house_number'], x['physical_street_name'], x['physical_zip_code']), axis=1, result_type="expand")
-    print(df['results'].value_counts())
-    return df
-
-def _transform_pass_06(df, columns_to_update) -> pd.DataFrame:
-    mask = df['results'] == 'Not Found'
-    df.loc[mask, columns_to_update] = df[mask].parallel_apply(lambda x: search_for_address(x['find_address']), axis=1, result_type="expand")
-    print(df['results'].value_counts())
-    mask = df['results'] == 'Not Found'
-    # df['find_address'] = df['physical_house_number'].astype(str) + ' ' + df['physical_street_name'].astype(str) + ' ' + df['physical_zip_code'].astype(str) + ' ' + df['physical_unit_number'].astype(str)
-    df.loc[mask, columns_to_update] = df[mask].parallel_apply(lambda x: search_for_apartments(x['find_address']), axis=1, result_type="expand")
-    print(df['results'].value_counts())
-    return df
-
-def _transform_pass_07(df, columns_to_update) -> pd.DataFrame:
-    mask = df['results'] == 'Not Found'
-    df.loc[mask, columns_to_update] = df[mask].parallel_apply(lambda x: search_for_address(x['find_address']), axis=1, result_type="expand")
-    print(df['results'].value_counts())
-    mask = df['results'] == 'Not Found'
-    # df['find_address'] = df['physical_house_number'].astype(str) + ' ' + df['physical_street_name'].astype(str) + ' ' + df['physical_zip_code'].astype(str) + ' ' + df['physical_unit_number'].astype(str)
-    df.loc[mask, columns_to_update] = df[mask].parallel_apply(lambda x: search_for_apartments(x['find_address']), axis=1, result_type="expand")
-    print(df['results'].value_counts())
-    return df
-
-def _transform_pass_final(df, columns_to_update) -> pd.DataFrame:
-    return df
 
 def _transform_address(df, iteration) -> pd.DataFrame:
     """
