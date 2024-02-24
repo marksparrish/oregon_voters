@@ -10,6 +10,8 @@ import os
 import time
 from datetime import datetime
 import pandas as pd
+from pandas import to_datetime
+
 import glob
 
 from common_functions.common import get_traceback, get_timing, cast_date, timing_decorator
@@ -36,7 +38,18 @@ def _clean(df):
     mask = ~df['precinct'].isna()
     df = df[mask]
 
-    df['registration_date'] = df['registration_date'].parallel_apply(convert_date_format)
+    # df['registration_date'] = df['registration_date'].parallel_apply(convert_date_format)
+    df['registration_date'] = to_datetime(df['registration_date'], format='%m-%d-%Y', errors='coerce')
+
+    # cast back to string with a format of 'YYYY-MM-DD'
+    if df['registration_date'].dtype == 'datetime64[ns]':
+        df['registration_date'] = df['registration_date'].dt.strftime('%Y-%m-%d').astype(str)
+    else:
+        print("Conversion to datetime failed. Check the format and data.")
+
+    # print(df['registration_date'].head())
+    # print(df['registration_date'].tail())
+    # exit()
     # De-dupe and sort the DataFrame in one step
     df = df.sort_values(by='registration_date', ascending=False).drop_duplicates(subset='state_voter_id', keep='first').reset_index(drop=True)
 
