@@ -34,3 +34,5 @@ dist/
 
 test.py
 src/voterfile/oregon_voters.code-workspace
+data/
+private.md
