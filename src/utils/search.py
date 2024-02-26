@@ -164,7 +164,6 @@ class MyExtendedElasticsearch(MyElasticsearch):
         response = self.client.options(basic_auth=(self.username, self.password)).search(index=index_name, body=query)
         return response
 
-print(es_host, ca_cert_path, es_username, es_password)
 search_client = MyExtendedElasticsearch(es_host, ca_cert_path, es_username, es_password)
 
 def search_for_address(address):

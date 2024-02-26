@@ -82,14 +82,15 @@ def output_row_as_json(df):
     Args:
         df (pd.DataFrame): The DataFrame to be processed.
     """
+    df = df.fillna('')
     # create unique file name using a timestamp
     file_name = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     # Iterate over DataFrame rows
-    for index, row in df.iterrows():
-        # Convert the row to a JSON string
-        json_str = row.to_json()
-        # Output the JSON string
-        with open(f'/Volumes/nfs-data/logstash/voters/{file_name}.json', 'a') as f:
+    with open(f'/Volumes/nfs-data/logstash/voters/{file_name}.json', 'a') as f:
+        for index, row in df.iterrows():
+            # Convert the row to a JSON string
+            json_str = row.to_json()
+            # Output the JSON string
             f.write(json_str + '\n')
 
 def main():
