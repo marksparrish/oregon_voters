@@ -1,0 +1,10 @@
+version: '3.7'
+services:
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.12.2 # Use the appropriate Logstash version
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+      - ./data:/data # Adjust this path to where your input files are located
+    ports:
+      - "9600:9600" # Expose ports if needed (optional)
+    command: tail -f /dev/null

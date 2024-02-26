@@ -136,6 +136,35 @@ class MyExtendedElasticsearch(MyElasticsearch):
         response = self.client.options(basic_auth=(self.username, self.password)).search(index=index_name, body=query)
         return response
 
+    def voter_votehistory(self, index_name, voter_id):
+        """
+        Search for an address in the Elasticsearch index.
+
+        Args:
+            index_name (str): The name of the Elasticsearch index to search.
+            address_query (str): The address query to search for.
+
+        Returns:
+            dict: The search results as a dictionary.
+        """
+        # Create an Elasticsearch query DSL for address search
+        query = {
+            "query": {
+                "bool": {
+                    "filter": [
+                        {
+                            "term": {
+                                "state_voter_id": voter_id
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+        response = self.client.options(basic_auth=(self.username, self.password)).search(index=index_name, body=query)
+        return response
+
+print(es_host, ca_cert_path, es_username, es_password)
 search_client = MyExtendedElasticsearch(es_host, ca_cert_path, es_username, es_password)
 
 def search_for_address(address):

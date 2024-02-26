@@ -142,12 +142,20 @@ def _transform_main(df, iteration) -> pd.DataFrame:
 
     # create a mask based on gender being unknown, andy, mostly_male, or mostly_female
     # then guess based on middle name
-    mask = df['gender'].isin(['unknown', 'andy', 'mostly_male', 'mostly_female'])
+    mask = df['gender'].isin(['unknown', 'andy'])
     df['gender'] = df['name_middle'].map(lambda x: gd.get_gender(x, country='usa'))
 
     # create the same mask and then change their gender value to unknown
-    mask = df['gender'].isin(['unknown', 'andy', 'mostly_male', 'mostly_female'])
+    mask = df['gender'].isin(['unknown', 'andy'])
     df.loc[mask, 'gender'] = 'unknown'
+
+    # create a mask based on mostly_male
+    mask = df['gender'] == 'mostly_male'
+    df.loc[mask, 'gender'] = 'male'
+
+    # create a mask based on mostly_female
+    mask = df['gender'] == 'mostly_female'
+    df.loc[mask, 'gender'] = 'female'
 
 
     # drop columns
