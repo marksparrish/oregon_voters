@@ -7,17 +7,13 @@ DATA_CONTRACT = {
 }
 
 dtype_mapping = {
-    'file_date': sqlalchemy.types.Date(),
     'state': sqlalchemy.types.String(length=50),
-    'district_county': sqlalchemy.types.String(length=100),
-    'district_type': sqlalchemy.types.String(length=100),
-    'district_name': sqlalchemy.types.String(length=100),
-    'district_link': sqlalchemy.types.String(length=200),
-    'precinct_name': sqlalchemy.types.String(length=100),
-    'precinct_number': sqlalchemy.types.String(length=100),
-    'precinct_split': sqlalchemy.types.String(length=100),
-    'precinct_link': sqlalchemy.types.String(length=200),
-}
+    'state_voter_id': sqlalchemy.types.String(length=50),
+    'election_date': sqlalchemy.types.Date(),
+    'voted': sqlalchemy.types.String(length=3),
+    'votes_early_days': sqlalchemy.types.Integer(),
+    'voted_on_date': sqlalchemy.types.Date(),
+    }
 
 final_columns = [
     'state',

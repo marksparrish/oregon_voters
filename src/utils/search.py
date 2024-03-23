@@ -248,8 +248,8 @@ def handle_single_result(hit):
         "PropertyAddressZIP": hit['_source'].get("PropertyAddressZIP"),
         "PropertyAddressZIP4": hit['_source'].get("PropertyAddressZIP4"),
         "PropertyAddressCRRT": hit['_source'].get("PropertyAddressCRRT"),
-        "PropertyLatitude": str(hit['_source'].get("PropertyLatitude")),
-        "PropertyLongitude": str(hit['_source'].get("PropertyLongitude"))
+        "PropertyLatitude": pd.to_numeric(hit['_source'].get("PropertyLatitude")),
+        "PropertyLongitude": pd.to_numeric(hit['_source'].get("PropertyLongitude"))
     })
 
 def handle_not_found():
@@ -266,6 +266,6 @@ def handle_not_found():
         "PropertyAddressZIP": "",
         "PropertyAddressZIP4": "",
         "PropertyAddressCRRT": "",
-        "PropertyLatitude": "",
-        "PropertyLongitude": ""
+        "PropertyLatitude": 0,
+        "PropertyLongitude": 0
     })

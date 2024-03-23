@@ -115,6 +115,10 @@ def _transform_main(df, iteration) -> pd.DataFrame:
     df['PropertyLatitude'] = pd.to_numeric(df['PropertyLatitude'], errors='coerce')
     df['PropertyLongitude'] = pd.to_numeric(df['PropertyLongitude'], errors='coerce')
 
+    # in PropertyLatitude and PropertyLongitude are null or NaN, set to 0
+    df['PropertyLatitude'] = df['PropertyLatitude'].fillna(0)
+    df['PropertyLongitude'] = df['PropertyLongitude'].fillna(0)
+
     # Create a mask for rows where 'results' is 'Not Found'
     mask = df['results'] == 'Not Found'
 
@@ -143,7 +147,7 @@ def _transform_main(df, iteration) -> pd.DataFrame:
     # create a mask based on gender being unknown, andy, mostly_male, or mostly_female
     # then guess based on middle name
     mask = df['gender'].isin(['unknown', 'andy'])
-    df['gender'] = df['name_middle'].map(lambda x: gd.get_gender(x, country='usa'))
+    df.loc[mask, 'gender'] = df['name_middle'].map(lambda x: gd.get_gender(x, country='usa'))
 
     # create the same mask and then change their gender value to unknown
     mask = df['gender'].isin(['unknown', 'andy'])
@@ -157,6 +161,7 @@ def _transform_main(df, iteration) -> pd.DataFrame:
     mask = df['gender'] == 'mostly_female'
     df.loc[mask, 'gender'] = 'female'
 
+    df['mail_id'] = df['mail_address_1'] + ' ' + df['mail_zip_code']
 
     # drop columns
     df = df[final_columns]
@@ -183,11 +188,16 @@ def main():
     df = _transform_address(df, iteration)
     df = _transform_main(df, iteration)
     # we only write the final file if we are running all iterations
+
+    # non_numeric = df[pd.to_numeric(df['PropertyLatitude'], errors='coerce').isna()]
+    # print(non_numeric[['PropertyLatitude','PropertyLongitude']])
+    # exit()
     if iteration == 0:
         df = write_load(df, os.path.join(FINAL_DATA_PATH, f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip"))
     print('')
     print(f"File Processed {len(df)} records")
-    print(df['gender'].value_counts())
+    # print(df)
+
 
 
 if __name__ == "__main__":

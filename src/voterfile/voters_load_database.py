@@ -18,11 +18,12 @@ import pyarrow.parquet as pq
 from common_functions.common import get_traceback, get_timing
 from common_functions.file_operations import read_extract, write_load
 
-from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, state, file_date, sample, DB_DATABASE
+from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, state, file_date, sample
 from utils.database import Database
 
 from data_contracts.voterfile_data_contract import DATA_CONTRACT, TABLENAME, dtype_mapping, final_columns
 
+DB_DATABASE = "oregon_voter_files"
 
 def _load_database(df) -> pd.DataFrame:
     print("....writing to database")
@@ -44,7 +45,6 @@ def _create_indices():
     db_connection.create_index(table_name, ["physical_id"])
 
 def _create_view():
-    database = DB_DATABASE
     db_connection = Database(DB_DATABASE)
 
     table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
@@ -57,6 +57,9 @@ def main():
     if sample > 0:
         print(f"...taking a sample of {sample}")
         df = df.sample(n=sample)
+    df['registration_date'] = df['registration_date'].replace('nan', file_date.strftime('%Y-%m-%d'))
+
+    df = df.fillna('')
     _load_database(df)
     _create_indices()
     _create_view()

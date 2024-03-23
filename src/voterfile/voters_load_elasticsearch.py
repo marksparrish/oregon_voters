@@ -82,7 +82,6 @@ def output_row_as_json(df):
     Args:
         df (pd.DataFrame): The DataFrame to be processed.
     """
-    df = df.fillna('')
     # create unique file name using a timestamp
     file_name = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     # Iterate over DataFrame rows
@@ -104,6 +103,9 @@ def main():
     if sample > 0:
         print(f"...taking a sample of {sample}")
         df = df.sample(n=sample)
+
+    # set Nan to empty string
+    df = df.fillna('')
     output_row_as_json(df)
     # df = _transform(df)
     # df = _load(df)

@@ -43,7 +43,7 @@ def _transform(df):
 def _load_database(df) -> pd.DataFrame:
     print("....writing to database")
 
-    database = "votetracker"
+    database = "oregon_voter_files"
     db_connection = Database(database)
     engine = db_connection.get_engine()
     table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
@@ -54,7 +54,7 @@ def _load_database(df) -> pd.DataFrame:
 
 def _create_indices():
     # Example usage
-    database = "votetracker"
+    database = "oregon_voter_files"
     db_connection = Database(database)
     table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
     db_connection.create_index(table_name, ["district_link"])
@@ -62,7 +62,7 @@ def _create_indices():
     db_connection.create_index(table_name, ["district_type", "district_name"])
 
 def _create_view():
-    database = "votetracker"
+    database = "oregon_voter_files"
     db_connection = Database(database)
 
     table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
