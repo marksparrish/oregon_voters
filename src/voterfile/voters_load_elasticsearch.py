@@ -103,7 +103,7 @@ def main():
     if sample > 0:
         print(f"...taking a sample of {sample}")
         df = df.sample(n=sample)
-
+    df['registration_date'] = df['registration_date'].replace('nan', file_date.strftime('%Y-%m-%d'))
     # set Nan to empty string
     df = df.fillna('')
     output_row_as_json(df)
