@@ -6,6 +6,7 @@ def parse_args():
     parser.add_argument('--date', required=True, help='File date in YYYY-MM-DD format')
     parser.add_argument('--iteration', type=int, default=0, help='Which pass to run with a default of 0 (all passes)')
     parser.add_argument('--sample', type=int, default=0, help='Sample option with a default of 0')
+    parser.add_argument('--link', type=int, default=0, help='Create View')
     return parser.parse_args()
 
 def get_date():
@@ -21,3 +22,7 @@ def get_sample():
 def get_iteration():
     args = parse_args()
     return args.iteration
+
+def get_link():
+    args = parse_args()
+    return args.link

@@ -18,7 +18,7 @@ import pyarrow.parquet as pq
 from common_functions.common import get_traceback, get_timing
 from common_functions.file_operations import read_extract, write_load
 
-from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, state, file_date, sample
+from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, state, file_date, sample, link
 from utils.database import Database
 
 from data_contracts.voterfile_data_contract import DATA_CONTRACT, TABLENAME, dtype_mapping, final_columns
@@ -30,8 +30,10 @@ def _load_database(df) -> pd.DataFrame:
     db_connection = Database(DB_DATABASE)
     print(f"Writing to database {DB_DATABASE}")
     engine = db_connection.get_engine()
-    table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
+    table_name = f"{TABLENAME.lower()}_{file_date.strftime('%Y_%m_%d')}"
 
+    # drop columns
+    df = df[final_columns]
     # df.to_sql(table_name, con=engine, index=False, if_exists='replace')
     df.to_sql(table_name, con=engine, index=False, if_exists='replace', dtype=dtype_mapping)
     return df.reset_index(drop=True)
@@ -39,7 +41,7 @@ def _load_database(df) -> pd.DataFrame:
 def _create_indices():
     # Example usage
     db_connection = Database(DB_DATABASE)
-    table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
+    table_name = f"{TABLENAME.lower()}_{file_date.strftime('%Y_%m_%d')}"
     db_connection.create_index(table_name, ["state_voter_id"])
     db_connection.create_index(table_name, ["precinct_link"])
     db_connection.create_index(table_name, ["physical_id"])
@@ -47,8 +49,8 @@ def _create_indices():
 def _create_view():
     db_connection = Database(DB_DATABASE)
 
-    table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
-    db_connection.create_view(f"{TABLENAME.lower()}-current", table_name)
+    table_name = f"{TABLENAME.lower()}_{file_date.strftime('%Y_%m_%d')}"
+    db_connection.create_view(f"{TABLENAME.lower()}_current", table_name)
 
 def main():
     df = pd.DataFrame()
@@ -62,7 +64,12 @@ def main():
     df = df.fillna('')
     _load_database(df)
     _create_indices()
-    _create_view()
+
+    if (link):
+        _create_view()
+    else:
+        print("Skipping create view")
+
     print(f"File Processed {len(df)} records")
 
 if __name__ == "__main__":

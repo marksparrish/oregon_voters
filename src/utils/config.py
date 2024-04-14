@@ -1,7 +1,7 @@
 # utils/config.py
 import os
 from dotenv import load_dotenv
-from utils.arg_parser import get_date, get_sample, get_iteration
+from utils.arg_parser import get_date, get_sample, get_iteration, get_link
 # Initialize pandarallel
 from pandarallel import pandarallel
 
@@ -20,6 +20,7 @@ state = os.environ.get("STATE", "OREGON").lower() # defined in .env file
 file_date = get_date() # defined in utils/arg_parser.py cli argument
 sample = get_sample() # defined in utils/arg_parser.py cli argument
 iteration = get_iteration() # defined in utils/arg_parser.py cli argument
+link = get_link() # defined in utils/arg_parser.py cli argument
 
 # Define default constants
 

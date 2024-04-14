@@ -163,9 +163,6 @@ def _transform_main(df, iteration) -> pd.DataFrame:
 
     df['mail_id'] = df['mail_address_1'] + ' ' + df['mail_zip_code']
 
-    # drop columns
-    df = df[final_columns]
-
     return df.reset_index(drop=True)
 
 def main():

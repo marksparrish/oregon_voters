@@ -46,7 +46,7 @@ def _load_database(df) -> pd.DataFrame:
     database = "oregon_voter_files"
     db_connection = Database(database)
     engine = db_connection.get_engine()
-    table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
+    table_name = f"{TABLENAME.lower()}_{file_date.strftime('%Y_%m_%d')}"
 
     # df.to_sql(table_name, con=engine, index=False, if_exists='replace')
     df.to_sql(table_name, con=engine, index=False, if_exists='replace', dtype=dtype_mapping)
@@ -56,7 +56,7 @@ def _create_indices():
     # Example usage
     database = "oregon_voter_files"
     db_connection = Database(database)
-    table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
+    table_name = f"{TABLENAME.lower()}_{file_date.strftime('%Y_%m_%d')}"
     db_connection.create_index(table_name, ["district_link"])
     db_connection.create_index(table_name, ["precinct_link"])
     db_connection.create_index(table_name, ["district_type", "district_name"])
@@ -65,8 +65,8 @@ def _create_view():
     database = "oregon_voter_files"
     db_connection = Database(database)
 
-    table_name = f"{TABLENAME.lower()}-{file_date.strftime('%Y-%m-%d')}"
-    db_connection.create_view(f"{TABLENAME.lower()}-current", table_name)
+    table_name = f"{TABLENAME.lower()}_{file_date.strftime('%Y_%m_%d')}"
+    db_connection.create_view(f"{TABLENAME.lower()}_current", table_name)
 
 def _load_es(df) -> pd.DataFrame:
     """
