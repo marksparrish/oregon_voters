@@ -15,7 +15,7 @@ import glob
 from common_functions.common import get_traceback, get_timing, cast_date, timing_decorator
 from common_functions.file_operations import read_extract, write_load, read_extract_multiple
 
-from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, LOGSTASH_DATA_PATH, state, file_date, sample
+from utils.config import RAW_DATA_PATH, PROCESSED_DATA_PATH, FINAL_DATA_PATH, WORKING_DATA_PATH, LOGSTASH_DATA_PATH, state, file_date, sample, link
 from utils.database import Database
 from utils.dataframe_operations import validate_dataframe
 from utils.transformations import convert_date_format
@@ -100,7 +100,10 @@ def main():
     df = write_load(df, os.path.join(FINAL_DATA_PATH, f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip"))
     df = _load_database(df)
     _create_indices()
-    _create_view()
+    if (link):
+        _create_view()
+    else:
+        print("Skipping create view")
     df = _load_es(df)
     # print(df.columns)
 

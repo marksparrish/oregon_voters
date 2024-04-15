@@ -144,7 +144,7 @@ def _transform_main(df, iteration) -> pd.DataFrame:
     # df['gender'] = df.parallel_apply(lambda row: assume_gender(row['name_first'], row['name_middle']), axis=1)
     df['gender'] = df['name_first'].map(lambda x: gd.get_gender(x, country='usa'))
 
-    # create a mask based on gender being unknown, andy, mostly_male, or mostly_female
+    # create a mask based on gender being unknown, andy
     # then guess based on middle name
     mask = df['gender'].isin(['unknown', 'andy'])
     df.loc[mask, 'gender'] = df['name_middle'].map(lambda x: gd.get_gender(x, country='usa'))

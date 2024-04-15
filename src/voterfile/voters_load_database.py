@@ -26,7 +26,6 @@ from data_contracts.voterfile_data_contract import DATA_CONTRACT, TABLENAME, dty
 DB_DATABASE = "oregon_voter_files"
 
 def _load_database(df) -> pd.DataFrame:
-    print("....writing to database")
     db_connection = Database(DB_DATABASE)
     print(f"Writing to database {DB_DATABASE}")
     engine = db_connection.get_engine()
@@ -40,6 +39,7 @@ def _load_database(df) -> pd.DataFrame:
 
 def _create_indices():
     # Example usage
+    print("Creating indices")
     db_connection = Database(DB_DATABASE)
     table_name = f"{TABLENAME.lower()}_{file_date.strftime('%Y_%m_%d')}"
     db_connection.create_index(table_name, ["state_voter_id"])
@@ -47,8 +47,8 @@ def _create_indices():
     db_connection.create_index(table_name, ["physical_id"])
 
 def _create_view():
+    print("Creating view")
     db_connection = Database(DB_DATABASE)
-
     table_name = f"{TABLENAME.lower()}_{file_date.strftime('%Y_%m_%d')}"
     db_connection.create_view(f"{TABLENAME.lower()}_current", table_name)
 
