@@ -73,12 +73,11 @@ def _load(df):
     return df.reset_index(drop=True)
 
 def _load_file(df):
-    # /Volumes/Data/voter_data/oregon/voter_lists/processed
-    file_path = f"/voterdata/{state}/daily_voted/processed/{file_date.strftime('%Y.%m.%d')}.{TABLENAME}.gzip"
+    file_path = os.path.join(DATA_FILES, state.lower(), 'daily_voted', 'processed', f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip")
+    # file_path = f"/voterdata/{state}/daily_voted/processed/{file_date.strftime('%Y.%m.%d')}.{TABLENAME}.gzip"
     print(f"...writing processed data to {file_path}", end =" ")
     df.to_parquet(file_path, index=False, compression='gzip')
     print("...done")
-    return df.reset_index(drop=True)
 
 def _load_index(df) -> None:
     print('...writing to index')
@@ -99,7 +98,7 @@ def main():
         print(f"...taking a sample of {sample}")
         df = df.sample(n=sample)
     df = _transform(df)
-    # df = _load(df)
+    _load_file(df)
     _load_index(df)
 
     print(f"File Processed {len(df)} records")
