@@ -12,6 +12,9 @@ from zipfile import ZipFile
 import glob
 from datetime import datetime
 import pandas as pd
+from sqlalchemy.sql import text
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import SQLAlchemyError
 
 from common_functions.common import get_traceback, get_timing, timing_decorator
 from common_functions.file_operations import read_extract, write_load, read_extract_multiple
@@ -19,7 +22,7 @@ from common_functions.file_operations import read_extract, write_load, read_extr
 from utils.arg_parser import get_date, get_sample
 
 from utils.config import LOGSTASH_DATA_PATH, DATA_FILES, state, file_date, sample, initialize_pandarallel
-from data_contracts.daily_voted_data_contract import DATA_CONTRACT, TABLENAME, dtype_mapping, final_columns
+from data_contracts.daily_voted_data_contract import DATA_CONTRACT, TABLENAME, dtype_mapping, final_columns, DailyVoted, Base, create_daily_voted_table
 from utils.database import Database
 from utils.file_operations import validate_dataframe
 from utils.transformations import convert_date_format
@@ -88,18 +91,85 @@ def _load_index(df) -> None:
     index_documents(df, index_name)
     print("...done")
 
+# Assuming Database class and other necessary imports and configurations are defined elsewhere
+
+def _load_database(df, database) -> pd.DataFrame:
+    db_connection = Database(database)
+    print(f"Writing to database {database}")
+    engine = db_connection.get_engine()
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    table_name = f"{TABLENAME.lower()}_{file_date.strftime('%Y_%m_%d')}"
+
+    # Create the table if it doesn't exist
+    create_daily_voted_table(engine)
+    _create_trigger(database)
+
+    try:
+        # Insert data using ORM
+        for index, row in df.iterrows():
+            daily_voted = DailyVoted(
+                state=row['state'],
+                election_date=row['election_date'],
+                state_voter_id=row['state_voter_id'],
+                ballot_id=row['ballot_id'],
+                ballot_style=row['ballot_style'],
+                voted_on_date=row['voted_on_date']
+            )
+            session.add(daily_voted)
+        session.commit()
+        print("All data inserted successfully.")
+    except SQLAlchemyError as e:
+        session.rollback()
+        print(f"An error occurred: {e}")
+    finally:
+        session.close()
+
+    return df.reset_index(drop=True)
+
+def _create_indices(database):
+    # Example usage
+    print("Creating indices")
+    db_connection = Database(database)
+    table_name = f"{TABLENAME.lower()}_{file_date.strftime('%Y_%m_%d')}"
+    db_connection.create_index(table_name, ["state_voter_id"])
+
+def _create_trigger(database):
+    print("Creating trigger")
+    db_connection = Database(database)
+    table_name = f"{TABLENAME.lower()}_{file_date.strftime('%Y_%m_%d')}"
+    trigger_statement = "DROP TRIGGER IF EXISTS after_daily_insert;"
+    db_connection.create_trigger(trigger_statement)
+    trigger_statement = f"""
+        CREATE TRIGGER after_daily_insert
+        AFTER INSERT ON {table_name}
+        FOR EACH ROW
+        BEGIN
+            INSERT IGNORE INTO daily_voted_history (state, election_date, state_voter_id, ballot_style, ballot_id, voted_on_date)
+            VALUES (NEW.state, NEW.election_date, NEW.state_voter_id, NEW.ballot_style, NEW.ballot_id, NEW.voted_on_date);
+        END;
+    """
+    db_connection.create_trigger(trigger_statement)
+
 @timing_decorator
 def main():
+    database = "oregon_voter_vote_history"
     df = pd.DataFrame()
     df = _extract(df)
+    print(f"...extracted {len(df)} records")
     df = validate_dataframe(df, DATA_CONTRACT)
+    print(f"...validated {len(df)} records")
     df = _clean(df)
+    print(f"...cleaned {len(df)} records")
     if sample:
         print(f"...taking a sample of {sample}")
         df = df.sample(n=sample)
     df = _transform(df)
+    print(f"...transformed {len(df)} records")
     _load_file(df)
     _load_index(df)
+    _load_database(df, database)
 
     print(f"File Processed {len(df)} records")
 

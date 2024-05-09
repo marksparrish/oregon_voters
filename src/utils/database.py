@@ -1,5 +1,5 @@
 # db_connection.py
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from utils.config import DB_HOST, DB_USERNAME, DB_PASSWORD, DB_PORT
 from sqlalchemy.sql import text
 
@@ -64,3 +64,31 @@ class Database:
 
         with self.engine.connect() as connection:
             connection.execute(sql_command)
+
+    def create_trigger(self, trigger_statement):
+        """
+        Create a trigger on the specified table.
+
+        Parameters:
+        trigger_name (str): Name of the trigger to be created.
+        table_name (str): Name of the table to create the trigger on.
+        action (str): Action that triggers the trigger (e.g. BEFORE INSERT).
+        statement (str): SQL statement to be executed when the trigger is triggered.
+        """
+        sql_command = text(trigger_statement)
+
+        with self.engine.connect() as connection:
+            connection.execute(sql_command)
+
+    def table_exists(self, table_name):
+            """
+            Check if a table exists in the database.
+
+            Parameters:
+            table_name (str): Name of the table to check.
+
+            Returns:
+            bool: True if table exists, False otherwise.
+            """
+            inspector = inspect(self.engine)
+            return inspector.has_table(table_name)
