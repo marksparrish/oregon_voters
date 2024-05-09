@@ -59,7 +59,7 @@ def _clean(df):
     return df.reset_index(drop=True)
 
 def _transform(df):
-    print('Transforming data...', end =" ")
+    print('Transforming data...')
     df['state'] = state.upper()
     df['election_date'] = file_date.strftime('%Y-%m-%d')
     df['voted'] = 'YES'
@@ -107,7 +107,7 @@ def _load_database(df, database) -> pd.DataFrame:
     _create_trigger(database)
 
     try:
-        # Insert data using ORM
+        batch_size = 5000  # Define the size of each batch
         for index, row in df.iterrows():
             daily_voted = DailyVoted(
                 state=row['state'],
@@ -118,14 +118,21 @@ def _load_database(df, database) -> pd.DataFrame:
                 voted_on_date=row['voted_on_date']
             )
             session.add(daily_voted)
-        session.commit()
-        print("All data inserted successfully.")
+
+            # Commit every batch_size records
+            if (index + 1) % batch_size == 0:
+                session.commit()
+                session.close()  # Close the session to clear memory and start a new one
+                session = Session()  # Open a new session
+                print(f"Committed {index + 1} rows of {len(df)}", end='\r', flush=True)
+        session.commit()  # Commit any remaining records
+        print(f"Committed all {len(df)} rows       ")  # Clear the line after final commit
     except SQLAlchemyError as e:
         session.rollback()
         print(f"An error occurred: {e}")
     finally:
         session.close()
-
+    print(f"Committed {len(df)} rows of {len(df)}")
     return df.reset_index(drop=True)
 
 def _create_indices(database):
