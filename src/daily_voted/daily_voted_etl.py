@@ -159,23 +159,6 @@ def _create_indices(database):
     table_name = f"{TABLENAME.lower()}_{file_date.strftime('%Y_%m_%d')}"
     db_connection.create_index(table_name, ["state_voter_id"])
 
-def _create_trigger(database):
-    print("Creating trigger")
-    db_connection = Database(database)
-    table_name = f"{TABLENAME.lower()}_{file_date.strftime('%Y_%m_%d')}"
-    trigger_statement = "DROP TRIGGER IF EXISTS after_daily_insert;"
-    db_connection.create_trigger(trigger_statement)
-    trigger_statement = f"""
-        CREATE TRIGGER after_daily_insert
-        AFTER INSERT ON {table_name}
-        FOR EACH ROW
-        BEGIN
-            INSERT IGNORE INTO daily_voted_history (state, election_date, state_voter_id, ballot_style, ballot_id, voted_on_date)
-            VALUES (NEW.state, NEW.election_date, NEW.state_voter_id, NEW.ballot_style, NEW.ballot_id, NEW.voted_on_date);
-        END;
-    """
-    db_connection.create_trigger(trigger_statement)
-
 # @timing_decorator
 def main():
     database = "oregon_voter_vote_history"
@@ -191,8 +174,8 @@ def main():
         df = df.sample(n=sample)
     df = _transform(df)
     print(f"...transformed {len(df)} records")
-    # _load_file(df)
-    # _load_index(df)
+    _load_file(df)
+    _load_index(df)
     _load_database(df, database)
 
     print(f"File Processed {len(df)} records")
