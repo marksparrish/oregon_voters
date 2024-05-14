@@ -2,6 +2,7 @@
 from sqlalchemy import create_engine, inspect
 from utils.config import DB_HOST, DB_USERNAME, DB_PASSWORD, DB_PORT
 from sqlalchemy.sql import text
+import pandas as pd
 
 class Database:
     def __init__(self, database):
@@ -92,3 +93,29 @@ class Database:
             """
             inspector = inspect(self.engine)
             return inspector.has_table(table_name)
+
+def fetch_existing_table(engine, sql_table, final_columns):
+    """
+    Fetch existing records from the database into a DataFrame.
+
+    Parameters:
+    session (sqlalchemy.orm.session.Session): SQLAlchemy session
+
+    Returns:
+    pd.DataFrame: DataFrame with existing records
+    """
+    df_existing = pd.read_sql(sql_table, engine.connect(), parse_dates=['election_date', 'voted_on_date'], columns=final_columns)
+    return df_existing
+
+def fetch_sql(engine, sql_query):
+    """
+    Fetch records from the database using a SQL query.
+
+    Parameters:
+    engine (sqlalchemy.engine.base.Engine): SQLAlchemy engine
+    sql_query (str): SQL query to execute
+
+    Returns:
+    pd.DataFrame: DataFrame with the fetched records
+    """
+    return pd.read_sql(text(sql_query), engine.connect())

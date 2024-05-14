@@ -14,17 +14,21 @@ from datetime import datetime
 import pandas as pd
 from sqlalchemy.sql import text
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.exc import SQLAlchemyError
+import traceback
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from sqlalchemy.dialects.postgresql import insert
 
-from common_functions.common import get_traceback, get_timing, timing_decorator
+
+# from common_functions.common import get_traceback, get_timing, timing_decorator
 from common_functions.file_operations import read_extract, write_load, read_extract_multiple
 
 from utils.arg_parser import get_date, get_sample
 
 from utils.config import LOGSTASH_DATA_PATH, DATA_FILES, state, file_date, sample, initialize_pandarallel
-from data_contracts.daily_voted_data_contract import DATA_CONTRACT, TABLENAME, dtype_mapping, final_columns, DailyVoted, Base, create_daily_voted_table
-from utils.database import Database
+from data_contracts.daily_voted_data_contract import DATA_CONTRACT, TABLENAME, dtype_mapping, final_columns, DailyVoted, Base
+from utils.database import Database, fetch_existing_table, fetch_sql
 from utils.file_operations import validate_dataframe
+from utils.dataframe_operations import diff_dataframe
 from utils.transformations import convert_date_format
 from utils.search import index_documents
 
@@ -93,47 +97,60 @@ def _load_index(df) -> None:
 
 # Assuming Database class and other necessary imports and configurations are defined elsewhere
 
+def _load_history(current_df, engine):
+    table_name = f"{TABLENAME.lower()}_history"
+    sql = f"SELECT * FROM {table_name} where election_date = '{file_date.strftime('%Y-%m-%d')}'"
+    existing_records = fetch_sql(engine, sql)
+
+    # convert election_date to datetime
+    existing_records['election_date'] = pd.to_datetime(existing_records['election_date'])
+    #convert voted_on_date to datetime
+    existing_records['voted_on_date'] = pd.to_datetime(existing_records['voted_on_date'])
+
+    insert_df = diff_dataframe(df_new=current_df, df_existing=existing_records, on_columns=final_columns)
+    print(f"Found {len(current_df)} new records to insert")
+    results = insert_df.to_sql(table_name, engine, if_exists='append', index=False, dtype=dtype_mapping, method='multi', chunksize=1000)
+    print(f"Committed {results} rows of {len(current_df)}")
+
+def _load_current(current_df, engine):
+    table_name = f"{TABLENAME.lower()}_{file_date.strftime('%Y_%m_%d')}"
+    existing_records = fetch_existing_table(engine, table_name, final_columns)
+
+    insert_df = diff_dataframe(df_new=current_df, df_existing=existing_records, on_columns=final_columns)
+    print(f"Found {len(current_df)} new records to insert")
+    results = insert_df.to_sql(table_name, engine, if_exists='append', index=False, dtype=dtype_mapping, method='multi', chunksize=1000)
+    print(f"Committed {results} rows of {len(current_df)}")
+
 def _load_database(df, database) -> pd.DataFrame:
+    """
+    Load data from a DataFrame into the specified database.
+
+    Parameters:
+    df (pd.DataFrame): DataFrame containing the data to be loaded.
+    database (str): Database connection string.
+
+    Returns:
+    pd.DataFrame: DataFrame with the loaded data.
+    """
     db_connection = Database(database)
     print(f"Writing to database {database}")
     engine = db_connection.get_engine()
     Session = sessionmaker(bind=engine)
     session = Session()
 
-    table_name = f"{TABLENAME.lower()}_{file_date.strftime('%Y_%m_%d')}"
-
     # Create the table if it doesn't exist
-    create_daily_voted_table(engine)
-    _create_trigger(database)
+    Base.metadata.create_all(bind=engine, checkfirst=True)
 
-    try:
-        batch_size = 5000  # Define the size of each batch
-        for index, row in df.iterrows():
-            daily_voted = DailyVoted(
-                state=row['state'],
-                election_date=row['election_date'],
-                state_voter_id=row['state_voter_id'],
-                ballot_id=row['ballot_id'],
-                ballot_style=row['ballot_style'],
-                voted_on_date=row['voted_on_date']
-            )
-            session.add(daily_voted)
+    # convert election_date to datetime
+    df['election_date'] = pd.to_datetime(df['election_date'])
+    #convert voted_on_date to datetime
+    df['voted_on_date'] = pd.to_datetime(df['voted_on_date'])
 
-            # Commit every batch_size records
-            if (index + 1) % batch_size == 0:
-                session.commit()
-                session.close()  # Close the session to clear memory and start a new one
-                session = Session()  # Open a new session
-                print(f"Committed {index + 1} rows of {len(df)}", end='\r', flush=True)
-        session.commit()  # Commit any remaining records
-        print(f"Committed all {len(df)} rows       ")  # Clear the line after final commit
-    except SQLAlchemyError as e:
-        session.rollback()
-        print(f"An error occurred: {e}")
-    finally:
-        session.close()
-    print(f"Committed {len(df)} rows of {len(df)}")
-    return df.reset_index(drop=True)
+    # _load current records
+    _load_current(df, engine)
+    # _load history records
+    _load_history(df, engine)
+
 
 def _create_indices(database):
     # Example usage
@@ -159,7 +176,7 @@ def _create_trigger(database):
     """
     db_connection.create_trigger(trigger_statement)
 
-@timing_decorator
+# @timing_decorator
 def main():
     database = "oregon_voter_vote_history"
     df = pd.DataFrame()
@@ -174,11 +191,15 @@ def main():
         df = df.sample(n=sample)
     df = _transform(df)
     print(f"...transformed {len(df)} records")
-    _load_file(df)
-    _load_index(df)
+    # _load_file(df)
+    # _load_index(df)
     _load_database(df, database)
 
     print(f"File Processed {len(df)} records")
+
+def get_traceback(e):
+    lines = traceback.format_exception(type(e), e, e.__traceback__)
+    return ''.join(lines)
 
 if __name__ == "__main__":
     try:

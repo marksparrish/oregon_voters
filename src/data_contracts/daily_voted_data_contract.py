@@ -3,6 +3,7 @@ from sqlalchemy import Column, Integer, String, Date, Index, UniqueConstraint, c
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from utils.config import file_date
+from utils.database import Database
 
 # Define the table name
 TABLENAME = "DAILY_VOTED"
@@ -53,12 +54,3 @@ class DailyVoted(Base):
         UniqueConstraint('state', 'election_date', 'state_voter_id', 'ballot_id', 'ballot_style', 'voted_on_date', name='idx_unique'),
         Index('idx_state_voter_id', 'state_voter_id'),  # Index for state_voter_id
     )
-
-def create_daily_voted_table(engine):
-    """
-    Create the daily_voted table in the database.
-
-    Parameters:
-    engine (sqlalchemy.engine.base.Engine): SQLAlchemy engine
-    """
-    Base.metadata.create_all(engine, checkfirst=True)
