@@ -48,13 +48,19 @@ def _extract(df):
             if 'readme' not in n:
                 print(n)
                 temp_df = pd.read_csv(ZipFile(file=file_path).open(n), sep='\t', dtype=str, on_bad_lines='skip')
+                # Ex-VoterNotVoted-gbergerson-2024-05-14-72459_YAMHILL.txt
+                # get the last part of the file name by underscore
+                county = os.path.basename(n).split('_')[-1].split('.')[0]
+                print(county)
+                temp_df['county'] = county
                 df = pd.concat([df, temp_df])
+
     return df.reset_index(drop=True)
 
 def _clean(df):
     print("Cleaning data")
     # de dupe
-    df = df.drop_duplicates()
+    df = df.drop_duplicates(subset=['county', 'state_voter_id', 'voted_on_date'], keep='last')
     # remove invalid state_voter_id
     df = df[df['state_voter_id'] != 'ACP']
 
@@ -108,20 +114,18 @@ def _load_history(current_df, engine):
     existing_records['voted_on_date'] = pd.to_datetime(existing_records['voted_on_date'])
 
     insert_df = diff_dataframe(df_new=current_df, df_existing=existing_records, on_columns=final_columns)
-    print(f"Found {len(current_df)} new records to insert")
-    results = insert_df.to_sql(table_name, engine, if_exists='append', index=False, dtype=dtype_mapping, method='multi', chunksize=1000)
-    print(f"Committed {results} rows of {len(current_df)}")
+    print(f"Found {len(insert_df)} new records to insert")
+    results = insert_df.to_sql(table_name, engine, if_exists='append', index=False, dtype=dtype_mapping, method='multi', chunksize=5000)
 
 def _load_current(current_df, engine):
     table_name = f"{TABLENAME.lower()}_{file_date.strftime('%Y_%m_%d')}"
     existing_records = fetch_existing_table(engine, table_name, final_columns)
 
     insert_df = diff_dataframe(df_new=current_df, df_existing=existing_records, on_columns=final_columns)
-    print(f"Found {len(current_df)} new records to insert")
-    results = insert_df.to_sql(table_name, engine, if_exists='append', index=False, dtype=dtype_mapping, method='multi', chunksize=1000)
-    print(f"Committed {results} rows of {len(current_df)}")
+    print(f"Found {len(insert_df)} new records to insert")
+    results = insert_df.to_sql(table_name, engine, if_exists='append', index=False, dtype=dtype_mapping, method='multi', chunksize=5000)
 
-def _load_database(df, database) -> pd.DataFrame:
+def _load_database(df_orginal, database) -> pd.DataFrame:
     """
     Load data from a DataFrame into the specified database.
 
@@ -138,6 +142,9 @@ def _load_database(df, database) -> pd.DataFrame:
     Session = sessionmaker(bind=engine)
     session = Session()
 
+    # shape df with final columns
+    df = df_orginal[final_columns].copy()
+
     # Create the table if it doesn't exist
     Base.metadata.create_all(bind=engine, checkfirst=True)
 
@@ -150,14 +157,6 @@ def _load_database(df, database) -> pd.DataFrame:
     _load_current(df, engine)
     # _load history records
     _load_history(df, engine)
-
-
-def _create_indices(database):
-    # Example usage
-    print("Creating indices")
-    db_connection = Database(database)
-    table_name = f"{TABLENAME.lower()}_{file_date.strftime('%Y_%m_%d')}"
-    db_connection.create_index(table_name, ["state_voter_id"])
 
 # @timing_decorator
 def main():
