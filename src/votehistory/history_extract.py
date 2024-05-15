@@ -35,7 +35,7 @@ def _clean(df):
     return df.reset_index(drop=True)
 
 def _transform(df):
-    print('Transforming data...', end =" ")
+    print('Transforming data...')
     for h in list(df):
         print(f"renaming or dropping {h}...", end =" ")
         try:
@@ -57,19 +57,8 @@ def _transform(df):
     print("...done")
     print("Adding state column")
     df['state'] = f"{state}".upper()
-    df['votes_early_days'] = 0
-    df['voted_on_date'] = df['election_date']
 
-    df = df[['state', 'state_voter_id', 'election_date', 'voted', 'votes_early_days', 'voted_on_date']]
-    return df.reset_index(drop=True)
-
-def _load(df):
-    print('Loading data', end =" ")
-    # /Volumes/Data/voter_data/oregon/voter_lists/processed
-    file_path = f"/voterdata/{state}/voter_lists/processed/{file_date.strftime('%Y.%m.%d')}.{tablename}.gzip"
-    print(f"...writing processed data to {file_path}", end =" ")
-    df.to_parquet(file_path, index=False, compression='gzip')
-    print("...done")
+    df = df[final_columns]
     return df.reset_index(drop=True)
 
 def main():
@@ -79,14 +68,12 @@ def main():
     df = read_extract_multiple(df, os.path.join(RAW_DATA_PATH, file_date.strftime('%Y_%m_%d'), 'history'))
     # rename VOTER_ID to state_voter_id
     df = df.rename(columns = {'VOTER_ID': 'state_voter_id'})
+    if sample:
+        print(f"...taking a sample of {sample}")
+        df = df.sample(n=sample)
     df = _clean(df)
     df = _transform(df)
-    # if sample:
-    #     print(f"...taking a sample of {sample}")
-    #     df = df.sample(n=sample)
-    # df = write_load(df, os.path.join(PROCESSED_DATA_PATH, f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip"))
-
-    print(df)
+    df = write_load(df, os.path.join(PROCESSED_DATA_PATH, f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip"))
 
     print(f"File Processed {len(df)} records")
 

@@ -1,61 +1,54 @@
-"""
-This file will store the final voter file in a compressed file,
-database and elasticsearch index.
-Database will be named votetracker_{state}_voters_{file_date}
-"""
 import sys
+sys.path.append(r'../src')
+import os
 import time
+from zipfile import ZipFile
+import glob
 from datetime import datetime
-
-sys.path.append('/app')
-
 import pandas as pd
-import pyarrow.parquet as pq
-from config import STATE
-from config.cli import FILE_DATE, SAMPLE
-from config.common import get_traceback, get_timing
+from sqlalchemy.sql import text
+from sqlalchemy.orm import sessionmaker
+import traceback
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from sqlalchemy.dialects.postgresql import insert
 
-from history import STATE, TABLENAME
 
-file_date = FILE_DATE
-sample = SAMPLE
-table_name = 'history'
-index_name = 'history'
-state = STATE
+from common_functions.common import get_traceback, get_timing, timing_decorator
+from common_functions.file_operations import read_extract, write_load, read_extract_multiple
 
-def _extract(df) -> pd.DataFrame:
-    print("Extracting Data...", end=" ")
-    # get file names
-    file_path = f"/voterdata/{state}/voter_lists/final/{file_date.strftime('%Y.%m.%d')}.{table_name}.gzip"
-    print(file_path)
-    df = pq.read_table(source=file_path).to_pandas()
-    print("...done")
-    return df.reset_index(drop=True)
+from utils.arg_parser import get_date, get_sample
+
+from utils.config import LOGSTASH_DATA_PATH, DATA_FILES, state, file_date, sample, initialize_pandarallel, PROCESSED_DATA_PATH
+from data_contracts.votehistory_data_contract import DATA_CONTRACT, TABLENAME, dtype_mapping, final_columns, ElectionVoting, Base
+from utils.database import Database, fetch_existing_table, fetch_sql
+from utils.file_operations import validate_dataframe
+from utils.dataframe_operations import diff_dataframe
+from utils.transformations import convert_date_format
+from utils.search import index_documents
 
 def _transform(df) -> pd.DataFrame:
     # we only want these columns
-    df = df[['state', 'state_voter_id', 'election_date', 'voted', 'votes_early_days', 'voted_on_date']]
+    df = df[final_columns]
+    # convert election_date to datetime
+    df['election_date'] = pd.to_datetime(df['election_date'])
     return df.reset_index(drop=True)
 
 def _load(df) -> pd.DataFrame:
     print("Loading data")
-    curr_dt = datetime.now()
-    timestamp = int(round(curr_dt.timestamp()))
-    file_path = f"/logstash/{table_name}/{timestamp}.csv"
-    df.to_csv(file_path, index=False, header=False)
-
+    print(df.head())
+    print(df.columns)
+    print(df.info())
     print("...done")
     return df.reset_index(drop=True)
 
 def main():
     df = pd.DataFrame()
-    df = _extract(df)
+    df = read_extract(df, os.path.join(PROCESSED_DATA_PATH, f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip"))
     if sample > 0:
         print(f"...taking a sample of {sample}")
         df = df.sample(n=sample)
     df = _transform(df)
     df = _load(df)
-    print(df)
 
     print(f"File Processed {len(df)} records")
 
