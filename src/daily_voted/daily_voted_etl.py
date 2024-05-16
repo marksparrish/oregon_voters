@@ -139,8 +139,6 @@ def _load_database(df_orginal, database) -> pd.DataFrame:
     db_connection = Database(database)
     print(f"Writing to database {database}")
     engine = db_connection.get_engine()
-    Session = sessionmaker(bind=engine)
-    session = Session()
 
     # shape df with final columns
     df = df_orginal[final_columns].copy()

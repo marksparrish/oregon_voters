@@ -73,6 +73,7 @@ def main():
         df = df.sample(n=sample)
     df = _clean(df)
     df = _transform(df)
+    df = df.drop_duplicates()
     df = write_load(df, os.path.join(PROCESSED_DATA_PATH, f"{file_date.strftime('%Y.%m.%d')}.{TABLENAME.lower()}.gzip"))
 
     print(f"File Processed {len(df)} records")
