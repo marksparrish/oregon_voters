@@ -11,7 +11,8 @@ def validate_dataframe(df, data_contract):
         if len(matching_columns) > 0:
             vdf[key] = df[matching_columns[0]].str.strip()
         else:
-            raise ValueError(f"Broken Contract! Missing columns for {key}: {possible_headers}")
+            message = f"Broken Contract! Missing columns for {key}: {possible_headers} / {df.columns}"
+            raise ValueError(message)
 
     print("Done")
     return vdf.reset_index(drop=True)
