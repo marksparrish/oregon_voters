@@ -23,7 +23,7 @@ def main():
 
     setup_logging()
 
-    for folder_name in folder_names:
+    for folder_name in sorted(folder_names):
         date_format = folder_name.replace('_', '-')
         command = f'python precinct/precinct_extract.py --date={date_format}'
         logging.info(f"Executing: {command}")

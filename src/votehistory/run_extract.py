@@ -25,7 +25,7 @@ def main():
     print(f"Processing {len(folder_names)} folders")
     setup_logging()
 
-    for folder_name in folder_names:
+    for folder_name in sorted(folder_names):
         date_format = folder_name.replace('_', '-')
         command = f'python votehistory/history_extract.py --date={date_format}'
         # load = f'python voterfile/voters_load.py --date={date_format}'

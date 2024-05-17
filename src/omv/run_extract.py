@@ -24,7 +24,7 @@ def main():
     folder_names = get_folder_names(directory, pattern)
     setup_logging()
 
-    for folder_name in folder_names:
+    for folder_name in sorted(folder_names):
         date_format = folder_name.replace('_', '-')
         command = f'python omv/omv_etl.py --date={date_format}'
         # load = f'python voterfile/voters_load.py --date={date_format}'
